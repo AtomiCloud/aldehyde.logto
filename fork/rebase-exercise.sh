@@ -45,10 +45,14 @@ info "Materialize old monthly pin ${old_ref} (${old_commit})"
 git worktree add --detach "${exercise_tree}" "${old_commit}" >/dev/null
 
 info 'Apply the isolated functional patch to the old pin'
-git -C "${exercise_tree}" cherry-pick "${functional_commit}"
+git -c user.name='AtomiCloud rebase exercise' \
+  -c user.email='rebase-exercise@atomi.cloud' \
+  -C "${exercise_tree}" cherry-pick "${functional_commit}"
 
 info "Replay that old-pin patch onto ${new_ref} (${new_commit})"
-git -C "${exercise_tree}" rebase --onto "${new_commit}" "${old_commit}" HEAD
+git -c user.name='AtomiCloud rebase exercise' \
+  -c user.email='rebase-exercise@atomi.cloud' \
+  -C "${exercise_tree}" rebase --onto "${new_commit}" "${old_commit}" HEAD
 
 replayed_commit="$(git -C "${exercise_tree}" rev-parse HEAD)"
 [[ "$(git -C "${exercise_tree}" rev-parse HEAD^)" == "${new_commit}" ]] \
