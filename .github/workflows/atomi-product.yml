@@ -1,0 +1,195 @@
+# AtomiCloud product CI for the aldehyde.logto fork.
+#
+# This is fork-owned and separate from upstream's release.yml (which pushes to
+# Logto's own registries via their private Depot project). It gates the fork's
+# one functional patch — the logto-operator boot-seed — and publishes a
+# multi-arch product image to the AtomiCloud registry.
+#
+# Gates:
+#   patch-quality        lint + type-aware build of the patched package
+#   boot-seed-integration real-Postgres harness: idempotency, mismatch rotation,
+#                         DR self-heal, Management API resource/scope/role, and
+#                         the named-secret canary (fork/harness/run.sh)
+#   product-image-sit     schema seed + core run as UID/GID 10001 from the built
+#                         image; live M2M auth, named-secret CRUD/retrievability,
+#                         reboot/rotation/DR, jwt-customizer, and magic-link
+#   rebase-exercise       disposable v1.40.1 -> v1.41.0 functional-patch replay
+#                         with the real-Postgres harness green
+#   image                 gated multi-arch (amd64+arm64) publication of the
+#                         deterministic `1.41.0` tag (derived from the upstream
+#                         pin, matching the chart's immutable reference) plus a
+#                         reported digest; cannot push until every gate succeeds
+
+name: Atomi product
+
+on:
+  push:
+    branches: [aldehyde]
+    tags: ["v*.*.*-atomi*", "atomi-*"]
+  pull_request:
+    branches: [aldehyde]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY_IMAGE: ghcr.io/atomicloud/aldehyde.logto
+  NODE_VERSION: ^22.14.0
+  PNPM_VERSION: "10"
+
+jobs:
+  patch-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build patched package and its deps
+        run: pnpm --filter "@logto/core..." build
+      - name: Lint the fork patch
+        run: pnpm --filter @logto/core exec eslint --ext .ts src/boot-seed src/index.ts
+      - name: Type-check the patched package
+        run: pnpm --filter @logto/core build:test
+
+  boot-seed-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build CLI (schema seeder) and core (fork patch)
+        run: pnpm --filter "@logto/cli..." --filter "@logto/core..." build
+      - name: Run boot-seed integration harness (real Postgres)
+        run: bash fork/harness/run.sh
+
+  product-image-sit:
+    needs: [patch-quality, boot-seed-integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and load the exact amd64 product image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: aldehyde-product-sit:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run product-image startup, API, and OSS regression journeys
+        run: bash fork/harness/image-sit.sh aldehyde-product-sit:${{ github.sha }}
+
+  rebase-exercise:
+    needs: patch-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Replay the old monthly pin onto the current pin and run the suite
+        run: bash fork/rebase-exercise.sh refs/tags/v1.40.1 refs/tags/v1.41.0
+
+  image:
+    needs:
+      [patch-quality, boot-seed-integration, product-image-sit, rebase-exercise]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The chart pins an IMMUTABLE reference `ghcr.io/atomicloud/aldehyde.logto:1.41.0`.
+      # Derive that exact tag from the pinned upstream ref in fork/UPSTREAM_REF so
+      # the published tag and the chart pin can never drift apart.
+      - name: Derive the deterministic product version from the upstream pin
+        id: ver
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          . fork/UPSTREAM_REF
+          version="${UPSTREAM_REF#refs/tags/v}"   # refs/tags/v1.41.0 -> 1.41.0
+          [ -n "$version" ] || { echo "could not derive version from UPSTREAM_REF" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing deterministic tag: ${REGISTRY_IMAGE}:$version" >> "$GITHUB_STEP_SUMMARY"
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          # `1.41.0` is the deterministic chart-pinned tag; `sha-<sha>` gives a
+          # per-commit handle for traceability. No moving branch/pr tags.
+          tags: |
+            type=raw,value=${{ steps.ver.outputs.version }}
+            type=sha,format=long
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build gated multi-arch image and push on non-PR events
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Report the immutable digest so the chart can pin by digest as well as tag.
+      - name: Report the published version and digest
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          version='${{ steps.ver.outputs.version }}'
+          digest='${{ steps.build.outputs.digest }}'
+          {
+            echo "## Published product image"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| tag | \`${REGISTRY_IMAGE}:${version}\` |"
+            echo "| digest | \`${digest}\` |"
+            echo "| pin-by-digest | \`${REGISTRY_IMAGE}@${digest}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Also emit a machine-readable artifact the chart automation can consume.
+          printf '{"image":"%s","tag":"%s","digest":"%s"}\n' \
+            "${REGISTRY_IMAGE}" "${version}" "${digest}" > published-image.json
+      - name: Upload the published-image reference
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-image
+          path: published-image.json
