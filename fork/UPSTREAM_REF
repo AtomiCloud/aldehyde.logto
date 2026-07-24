@@ -1,0 +1,5 @@
+# Pinned upstream Logto ref this fork is rebased onto.
+# Updated by fork/rebase.sh on each monthly rebase. Do not hand-edit the SHA.
+UPSTREAM_REMOTE=https://github.com/logto-io/logto.git
+UPSTREAM_REF=refs/tags/v1.41.0
+UPSTREAM_COMMIT=91e55698a42f99438cd41ec2b16a1fc51dbdab8a
