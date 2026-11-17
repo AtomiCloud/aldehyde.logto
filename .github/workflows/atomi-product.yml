@@ -2,21 +2,28 @@
 #
 # This is fork-owned and separate from upstream's release.yml (which pushes to
 # Logto's own registries via their private Depot project). It gates the fork's
-# one functional patch — the logto-operator boot-seed — and publishes a
-# multi-arch product image to the AtomiCloud registry.
+# two functional patches — the logto-operator boot-seed and the page-only
+# "Powered by Logto" removal — and publishes a multi-arch product image to the
+# AtomiCloud registry.
 #
 # Gates:
-#   patch-quality        lint + type-aware build of the patched package
+#   patch-quality        lint + type-aware build of both patched packages
 #   boot-seed-integration real-Postgres harness: idempotency, mismatch rotation,
 #                         DR self-heal, Management API resource/scope/role, and
 #                         the named-secret canary (fork/harness/run.sh)
 #   product-image-sit     schema seed + core run as UID/GID 10001 from the built
 #                         image; live M2M auth, named-secret CRUD/retrievability,
-#                         reboot/rotation/DR, jwt-customizer, and magic-link
-#   rebase-exercise       disposable v1.40.1 -> v1.41.0 functional-patch replay
+#                         reboot/rotation/DR, jwt-customizer, and magic-link; then
+#                         headless Chrome on the same image: the sign-in page and
+#                         the account page show no "Powered by Logto" text and no
+#                         .logto_signature element (fork/harness/no-signature.sh)
+#   no-signature-planted  builds the image with the page-only patch reverted and
+#                         proves the no-signature probe sees the line on BOTH pages
+#                         (so a green no-signature check is not vacuous)
+#   rebase-exercise       disposable v1.41.0 -> v1.46.0 functional-patch replay
 #                         with the real-Postgres harness green
 #   image                 gated multi-arch (amd64+arm64) publication of the
-#                         deterministic `1.41.0` tag (derived from the upstream
+#                         deterministic `1.46.0` tag (derived from the upstream
 #                         pin, matching the chart's immutable reference) plus a
 #                         reported digest; cannot push until every gate succeeds
 
@@ -36,7 +43,7 @@ concurrency:
 
 env:
   REGISTRY_IMAGE: ghcr.io/atomicloud/aldehyde.logto
-  NODE_VERSION: ^22.14.0
+  NODE_VERSION: ^26.12.1
   PNPM_VERSION: "10"
 
 jobs:
@@ -55,6 +62,16 @@ jobs:
         run: pnpm --filter @logto/core exec eslint --ext .ts src/boot-seed src/index.ts
       - name: Type-check the patched package
         run: pnpm --filter @logto/core build:test
+      - name: Build the page-only patch's dependencies
+        run: pnpm --filter "@logto/experience^..." --filter "@logto/account^..." build
+      - name: Lint and type-check the page-only patch
+        run: |
+          pnpm --filter @logto/experience exec eslint src/shared/components/LogtoSignature/index.tsx
+          pnpm --filter @logto/account exec eslint src/App.branding.test.tsx
+          pnpm --filter @logto/experience exec tsc --noEmit
+          pnpm --filter @logto/account exec tsc --noEmit
+      - name: Account center branding test (signature never drawn)
+        run: pnpm --filter @logto/account exec jest src/App.branding.test.tsx
 
   boot-seed-integration:
     runs-on: ubuntu-latest
@@ -94,6 +111,50 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Run product-image startup, API, and OSS regression journeys
         run: bash fork/harness/image-sit.sh aldehyde-product-sit:${{ github.sha }}
+      - name: No "Powered by Logto" on the sign-in and account pages (headless Chrome)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: bash fork/harness/no-signature.sh aldehyde-product-sit:${{ github.sha }}
+
+  # Planted failure for the check above: the same build with ONLY the page-only
+  # patch reverted to the upstream file must show the signature on both pages.
+  # If the probe ever stops seeing it, this job turns red, so a green
+  # no-signature check can never be vacuous.
+  no-signature-planted:
+    needs: patch-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Revert only the page-only patch to the pinned upstream file
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          . fork/UPSTREAM_REF
+          git fetch --no-tags --depth=1 "${UPSTREAM_REMOTE}" "${UPSTREAM_COMMIT}"
+          file=packages/experience/src/shared/components/LogtoSignature/index.tsx
+          git show "${UPSTREAM_COMMIT}:${file}" > "${file}"
+          git diff --stat
+          ! grep -q 'Aldehyde fork' "${file}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and load the unpatched amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: aldehyde-unpatched-sit:${{ github.sha }}
+          cache-from: type=gha
+      - name: The probe must see the signature on both pages of the unpatched build
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: bash fork/harness/no-signature.sh aldehyde-unpatched-sit:${{ github.sha }} --expect-signature
 
   rebase-exercise:
     needs: patch-quality
@@ -102,17 +163,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The branch head, not GitHub's PR test merge: the exercise walks the
+          # fork's first-parent chain, and the test merge's first parent is the base.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Setup Node and pnpm
         uses: silverhand-io/actions-node-pnpm-run-steps@v5
         with:
           pnpm-version: ${{ env.PNPM_VERSION }}
           node-version: ${{ env.NODE_VERSION }}
       - name: Replay the old monthly pin onto the current pin and run the suite
-        run: bash fork/rebase-exercise.sh refs/tags/v1.40.1 refs/tags/v1.41.0
+        run: bash fork/rebase-exercise.sh refs/tags/v1.41.0 refs/tags/v1.46.0
 
   image:
     needs:
-      [patch-quality, boot-seed-integration, product-image-sit, rebase-exercise]
+      [
+        patch-quality,
+        boot-seed-integration,
+        product-image-sit,
+        no-signature-planted,
+        rebase-exercise,
+      ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -121,7 +191,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # The chart pins an IMMUTABLE reference `ghcr.io/atomicloud/aldehyde.logto:1.41.0`.
+      # The chart pins an IMMUTABLE reference `ghcr.io/atomicloud/aldehyde.logto:1.46.0`.
       # Derive that exact tag from the pinned upstream ref in fork/UPSTREAM_REF so
       # the published tag and the chart pin can never drift apart.
       - name: Derive the deterministic product version from the upstream pin
@@ -130,7 +200,7 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC1091
           . fork/UPSTREAM_REF
-          version="${UPSTREAM_REF#refs/tags/v}"   # refs/tags/v1.41.0 -> 1.41.0
+          version="${UPSTREAM_REF#refs/tags/v}"   # refs/tags/v1.46.0 -> 1.46.0
           [ -n "$version" ] || { echo "could not derive version from UPSTREAM_REF" >&2; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Publishing deterministic tag: ${REGISTRY_IMAGE}:$version" >> "$GITHUB_STEP_SUMMARY"
@@ -139,7 +209,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY_IMAGE }}
-          # `1.41.0` is the deterministic chart-pinned tag; `sha-<sha>` gives a
+          # `1.46.0` is the deterministic chart-pinned tag; `sha-<sha>` gives a
           # per-commit handle for traceability. No moving branch/pr tags.
           tags: |
             type=raw,value=${{ steps.ver.outputs.version }}
