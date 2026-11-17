@@ -1,11 +1,34 @@
 # aldehyde.logto — AtomiCloud fork of Logto OSS
 
+> Independent fork; not affiliated with or endorsed by Silverhand Inc. / Logto.
+
 This repository is a **pinned, CI-tested fork** of upstream
-[logto-io/logto](https://github.com/logto-io/logto) carrying exactly **one
-functional patch** on top of a tracked upstream tag. Everything else in the tree
+[logto-io/logto](https://github.com/logto-io/logto) carrying exactly **two
+functional patches** on top of a tracked upstream tag. Everything else in the tree
 is upstream, unmodified, so the monthly rebase stays cheap.
 
-## The one functional patch
+## Functional patch 2: no "Powered by Logto" line on the sign-in and account pages
+
+- Code: [`packages/experience/src/shared/components/LogtoSignature/index.tsx`](../packages/experience/src/shared/components/LogtoSignature/index.tsx)
+  — the component's default export renders nothing; the upstream component stays
+  in the file as a named export (`UpstreamLogtoSignature`), so a rebase conflict is
+  one line at most. The sign-in app (`experience/src/Layout/AppLayout`) and the
+  account center (`account/src/App.tsx`, `account/src/components/PageFooter`) both
+  import this one component.
+- Commit: a single `feat(experience): never draw the Powered by Logto line`, which
+  also updates the upstream account-center branding unit test to expect no signature.
+- **Page-only by design.** It touches no licence, subscription or entitlement code.
+  The `hideLogtoBranding` sign-in-experience setting keeps its upstream behaviour
+  (on OSS it stays `false`); the page simply never draws the line.
+- Proof on every build: `fork/harness/no-signature.sh` boots the built image,
+  signs a real user in through headless Chrome, and asserts that the sign-in page
+  and the account page carry no "Powered by" text, no `.logto_signature` element,
+  no `[data-logto-signature]` element and no signature guard style. The
+  `no-signature-planted` job builds the same tree with only this patch reverted
+  and requires the probe to see the signature on **both** pages, so the check can
+  never pass vacuously.
+
+## Functional patch 1: boot-seed of the operator credential
 
 **Startup boot-seed of the `logto-operator` Management API credential.**
 
@@ -46,8 +69,8 @@ Recorded in [`fork/UPSTREAM_REF`](UPSTREAM_REF):
 | field | value |
 | --- | --- |
 | upstream | `https://github.com/logto-io/logto.git` |
-| ref | `refs/tags/v1.41.0` |
-| commit | `91e55698a42f99438cd41ec2b16a1fc51dbdab8a` |
+| ref | `refs/tags/v1.46.0` |
+| commit | `d179bf9d2d51104236a342b90c2841df66e4ba5b` |
 
 ## Deployment requirement (UID/GID 10001 + writable alteration-scripts)
 
@@ -73,10 +96,18 @@ fork/rebase.sh --dry-run v1.42.0   # fetch + preview the replay, no changes
 fork/rebase.sh v1.42.0             # rebase --onto, re-pin, rebuild, re-test
 ```
 
-The script replays the fork commits with `git rebase --onto <new> <old-pin>`,
+The script cherry-picks the fork commits (first-parent only) onto `<new>`,
 rewrites `fork/UPSTREAM_REF`, then rebuilds and re-runs the integration harness —
 so a rebase is never done until the patch still passes. Conflicts, if any, are
-confined to the two files the functional patch touches.
+confined to the files the two functional patches touch (boot-seed + its hook,
+and the `LogtoSignature` component + its account-center unit test).
+
+The replay rewrites history, so the script ends with a `merge -s ours` of the
+replaced fork head: the tree stays exactly the replayed one, and `aldehyde` only
+ever **fast-forwards**. **Never force-push `aldehyde`**: push the result as a new
+branch (for example `rebase/v1.46.0`), open a PR into `aldehyde`, and let CI plus
+review pass there. Because of that merge, the next replay takes first-parent
+commits only, so the replaced commits are never replayed twice.
 
 ## Test coverage & boundary
 
@@ -84,7 +115,7 @@ CI is [`.github/workflows/atomi-product.yml`](../.github/workflows/atomi-product
 
 | gate | how | where it runs |
 | --- | --- | --- |
-| lint + typecheck of the patch | `eslint` + `build:test` | `patch-quality` job |
+| lint + typecheck of both patches | `eslint` + `build:test` / `tsc --noEmit` | `patch-quality` job |
 | boot-seed idempotency | `fork/harness/run.sh` S3 | real Postgres |
 | mismatch rotation (secret + client id) | harness S4, S5 | real Postgres |
 | DR self-heal | harness S6 | real Postgres |
@@ -96,8 +127,11 @@ CI is [`.github/workflows/atomi-product.yml`](../.github/workflows/atomi-product
 | named-secret CRUD / retrievability | create, list, rename, reboot, re-read, and delete via authenticated Management API | `product-image-sit` job |
 | jwt-customizer script engine | run the customizer in the image's local VM via `POST /api/configs/jwt-customizer/test`; assert claims projected from `context.user.customData` and `environmentVariables` | `product-image-sit` job |
 | one-time-token / magic-link | issue via `POST /api/one-time-tokens` then redeem via `.../verify`; assert `active -> consumed` | `product-image-sit` job |
-| old-pin to current-pin monthly replay | disposable `v1.40.1 -> v1.41.0` rebase + harness | `rebase-exercise` job |
-| multi-arch image (amd64 + arm64), deterministic `1.41.0` tag + digest | gated `docker/build-push-action` after every preceding job | `image` job |
+| no "Powered by Logto" on sign-in + account pages | headless Chrome on the built image, real sign-in, DOM + text assertions (`fork/harness/no-signature.sh`) | `product-image-sit` job |
+| that check is not vacuous | same tree with only the page patch reverted must show the signature on both pages | `no-signature-planted` job |
+| account-center branding unit test | upstream jest test, updated to expect no signature | `patch-quality` job |
+| old-pin to current-pin monthly replay | disposable `v1.41.0 -> v1.46.0` rebase + harness | `rebase-exercise` job |
+| multi-arch image (amd64 + arm64), deterministic `1.46.0` tag + digest | gated `docker/build-push-action` after every preceding job | `image` job |
 
 `jwt-customizer` and `magic-link` remain unmodified upstream features. The fork
 nevertheless gates both against every built product image because they are
@@ -131,5 +165,7 @@ boot/API checks, and the disposable monthly-rebase exercise.
 pnpm --filter "@logto/cli..." --filter "@logto/core..." build
 fork/harness/run.sh        # requires docker
 fork/harness/image-sit.sh aldehyde-product-sit:local
-fork/rebase-exercise.sh refs/tags/v1.40.1 refs/tags/v1.41.0
+fork/harness/no-signature.sh aldehyde-product-sit:local
+fork/harness/no-signature.sh <unpatched-image> --expect-signature
+fork/rebase-exercise.sh refs/tags/v1.41.0 refs/tags/v1.46.0
 ```
