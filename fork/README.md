@@ -100,7 +100,9 @@ The script cherry-picks the fork commits (first-parent only) onto `<new>`,
 rewrites `fork/UPSTREAM_REF`, then rebuilds and re-runs the integration harness —
 so a rebase is never done until the patch still passes. Conflicts, if any, are
 confined to the files the two functional patches touch (boot-seed + its hook,
-and the `LogtoSignature` component + its account-center unit test).
+and the `LogtoSignature` component + its account-center unit test). Two upstream CI
+files also carry small fork edits: `.github/workflows/commitlint.yml` (lints the fork's
+own commits only) and `.scripts/package.sh` (packages a checkout not named `logto`).
 
 The replay rewrites history, so the script ends with a `merge -s ours` of the
 replaced fork head: the tree stays exactly the replayed one, and `aldehyde` only
