@@ -28,7 +28,11 @@ jobs:
 
       - name: Commitlint
         # Credit to https://stackoverflow.com/a/67365254/12514940
-        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+        # Aldehyde fork: lint only the fork's own commits. A rebase PR also carries every
+        # upstream commit since the old pin, and those are upstream's to lint, not ours.
+        run: |
+          . fork/UPSTREAM_REF
+          npx commitlint --from "${UPSTREAM_COMMIT}" --to ${{ github.event.pull_request.head.sha }} --verbose
 
       - name: Commitlint on PR title
         env:

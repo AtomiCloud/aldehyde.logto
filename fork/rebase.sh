@@ -15,7 +15,8 @@
 # current pin. Resolve conflicts inside packages/core/src/boot-seed,
 # packages/core/src/index.ts and packages/experience/src/shared/components/LogtoSignature
 # (plus its unit test packages/account/src/App.branding.test.tsx): the only files the
-# two functional patches touch.
+# two functional patches touch; the fork also scopes .github/workflows/commitlint.yml
+# to its own commits.
 #
 # The replay rewrites the branch, but the script ends it with a `merge -s ours` of
 # the replaced history, so the fork branch only ever fast-forwards. Never force-push:
