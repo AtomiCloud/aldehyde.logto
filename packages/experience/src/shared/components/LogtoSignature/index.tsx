@@ -79,7 +79,7 @@ type Props = {
   readonly theme: Theme;
 };
 
-const LogtoSignature = ({ className, theme }: Props) => {
+const UpstreamLogtoSignature = ({ className, theme }: Props) => {
   const LogtoLogo = theme === Theme.Light ? LogtoLogoLight : LogtoLogtoDark;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,4 +187,10 @@ const LogtoSignature = ({ className, theme }: Props) => {
   );
 };
 
+// Aldehyde fork (AtomiCloud decision 2026-11-17, page-only patch): the sign-in and
+// account pages never draw the "Powered by Logto" line. Page-only: no licence,
+// subscription or entitlement code is touched and `hideLogtoBranding` stays false.
+const LogtoSignature = (_props: Props) => null;
+
+export { UpstreamLogtoSignature };
 export default LogtoSignature;

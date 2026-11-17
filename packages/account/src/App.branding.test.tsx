@@ -55,7 +55,8 @@ describe('Account Center Logto branding', () => {
       await act(async () => {
         resolveSettings({ ...mockSignInExperienceSettings, hideLogtoBranding });
       });
-      expect(Boolean(querySignature())).toBe(!hideLogtoBranding);
+      // Aldehyde fork: the page-only patch never draws the signature, whatever the setting
+      expect(querySignature()).toBeNull();
     }
   );
 });
