@@ -42,6 +42,7 @@
  * (§5), and never any one-time-token / magic-link surface (§6).
  */
 
+import { createPoolWithRetry } from '@logto/cli/lib/pool-retry.js';
 import {
   PredefinedScope,
   defaultTenantId,
@@ -56,8 +57,6 @@ import {
   type CommonQueryMethods,
 } from '@silverhand/slonik';
 import chalk from 'chalk';
-
-import { createPoolWithRetry } from '../env-set/create-pool.js';
 
 const consoleLog = new ConsoleLog(chalk.green('boot-seed'));
 
@@ -243,7 +242,7 @@ export const runBootSeed = async (): Promise<void> => {
     throw new Error('[boot-seed] DB_URL with a database name is required to boot-seed.');
   }
 
-  // Same connection-retry policy the server itself uses (env-set/create-pool);
+  // Same connection-retry policy the server itself uses (env-set/create-pool via the CLI);
   // createPoolWithRetry already runs a readiness probe on the returned pool.
   const pool = await createPoolWithRetry(async () =>
     createPool(databaseUrl, { interceptors: createInterceptorsPreset() })

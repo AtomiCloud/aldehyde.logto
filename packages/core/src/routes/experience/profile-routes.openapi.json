@@ -162,6 +162,40 @@
         }
       }
     },
+    "/api/experience/profile/trusted-device": {
+      "post": {
+        "operationId": "SetTrustedDeviceOptInDecision",
+        "summary": "Set trusted device opt-in decision",
+        "description": "Record whether the user trusts the current device after eligible MFA verification or binding. A trusted-device credential is created only after the interaction is successfully submitted.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "trusted": {
+                    "description": "Whether to trust the current device."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The trusted-device opt-in decision has been recorded for the current interaction."
+          },
+          "400": {
+            "description": "The decision payload is invalid, or trusted-device opt-in is not supported for the current interaction event."
+          },
+          "403": {
+            "description": "An eligible MFA verification or binding is required before accepting the trusted-device opt-in."
+          },
+          "404": {
+            "description": "The user has not been identified yet."
+          }
+        }
+      }
+    },
     "/api/experience/profile/mfa/mfa-suggestion-skipped": {
       "post": {
         "operationId": "SkipMfaSuggestion",
@@ -214,6 +248,9 @@
           "400": {
             "description": "Invalid request. <br/>- `session.verification_failed:` The MFA verification record is invalid or not verified. <br/>- `session.mfa.mfa_factor_not_enabled:` The MFA factor is not enabled in the sign-in experience settings. <br/>- `session.mfa.pending_info_not_found:` The MFA verification record does not have the required information to bind the MFA verification."
           },
+          "403": {
+            "description": "Forbidden. <br/>- `session.mfa.require_mfa_verification:` The sign-in has existing MFA factors and must verify one before binding a new factor."
+          },
           "404": {
             "description": "Entity not found. <br/> - `session.identifier_not_found:` The user has not been identified yet. The MFA verification can only be added to a identified user. <br/>- `session.verification_session_not_found:` The MFA verification record is not found."
           },
@@ -265,6 +302,9 @@
           },
           "400": {
             "description": "Invalid request. <br/>- `session.verification_failed:` The WebAuthn verification record is invalid or not verified. <br/>- `session.mfa.pending_info_not_found:` The verification record does not have the required registration data."
+          },
+          "403": {
+            "description": "Forbidden. <br/>- `session.mfa.require_mfa_verification:` The sign-in has existing MFA factors and must verify one before binding a new factor."
           },
           "404": {
             "description": "Entity not found. <br/>- `session.identifier_not_found:` The user has not been identified yet. <br/>- `session.verification_session_not_found:` The WebAuthn verification record is not found."

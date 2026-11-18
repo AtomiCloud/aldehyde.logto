@@ -1,5 +1,137 @@
 # Change Log
 
+## 1.33.0
+
+### Minor Changes
+
+- c738bda: add a Cross-Origin-Opener-Policy setting for Bring your UI sign-in pages
+
+  Tenants with Bring your UI can choose `same-origin-allow-popups` or `same-origin` under Sign-in experience > Branding > Bring your UI, or set `crossOriginOpenerPolicy` with the sign-in experience Management API. The header is sent on the hosted sign-in pages while custom UI assets are served. The default, `unsafe-none`, sends no header, so apps that open the sign-in page in a popup keep working.
+
+- 4c2822c: support GeeTest as a CAPTCHA provider
+
+  [GeeTest](https://www.geetest.com) CAPTCHA v4 adds an adaptive CAPTCHA service with localized challenges, which suits sign-in experiences targeting mainland China where Google reCAPTCHA is often unreachable.
+
+  To use it, create a CAPTCHA v4 event in the GeeTest dashboard, then go to Console > Security > CAPTCHA and add GeeTest with its CAPTCHA ID and CAPTCHA key. The same configuration is available through the `PUT /api/captcha-provider` Management API with `type: "Geetest"`.
+
+  While GeeTest is the CAPTCHA provider, the sign-in page's Content Security Policy allows GeeTest's SDK, API, and static hosts, which the widget loads the challenge from.
+
+- bdd4d5a: configure static attributes for SAML applications in Console
+
+  The attribute mapping tab of a SAML application now has a "Static attributes" section, where you can add fixed attribute names and values that are sent in every assertion alongside the mapped user attributes.
+
+- fa062b6: add static attributes to SAML application assertions
+
+  SAML applications can define fixed attribute name-value pairs with the `staticAttributes` field of the `POST /api/saml-applications` and `PATCH /api/saml-applications/{id}` Management APIs. They are added to every assertion alongside the mapped user attributes, for service providers that require constant values such as an account or site ID.
+
+  Attribute names may contain letters, digits, and `_.:/#@-`. They must not conflict with each other or with the user attribute names in the assertion, including names that differ only in case or separators, such as `site_id` and `siteId`.
+
+- d65a8dc: support OIDC step-up authentication for Account Center and developer applications
+
+  Clients can request `acr_values` and `max_age` and receive `acr`, `amr`, and `auth_time` in ID tokens, access tokens, and introspection responses. The built-in Account Center now authorizes sensitive Account API operations with a fresh first-party `urn:logto:acr:1fa` access token instead of a separate verification record, and the legacy permission-verification runtime is removed.
+
+### Patch Changes
+
+- 249bfda: forward `login_hint` from Account Center URLs to the sign-in page
+
+  Add `login_hint=` to any Account Center URL (for example, `https://auth.foo.com/account/security?login_hint=foo@example.com`) to pre-fill the identifier on the sign-in page when the user needs to sign in. The hint only pre-fills the field, so users can still sign in with a different identifier.
+
+- a7a0af9: respond 502 `connector.social_provider_unreachable` when the social provider cannot be reached
+
+  A social sign-in whose token exchange or user-info request failed at the transport level (timeout, connection reset, DNS failure) ended with a 500 "Internal server error.", indistinguishable from a bug in Logto. The social library now relays such a failure as a 502 that carries the network code and the connector id, whichever HTTP client the connector uses (`got` or `ky`), so a caller can tell a provider outage from a Logto error and the end user gets a translated message instead of a generic one. The request's method and URL are written to the server log.
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- cec1c1a: fix manual unlock not clearing active security verification lockouts
+
+  Sentinel activity deletion now also removes active blocked decisions older than one hour, so manually unlocking a user works when the lockout duration exceeds 60 minutes. The manual unlock dialog and API documentation now mention user IDs and security verification lockouts.
+
+- 4dc1d1b: allow admins to require individual users to set up MFA, preventing those users from skipping the setup flow
+
+  Set `mfa.required` to `true` through the Management API, or turn on "Require MFA setup" on the user details page in Console. The user must bind MFA on their next sign-in and cannot skip it, regardless of the organization-level MFA policy.
+
+## 1.32.1
+
+### Patch Changes
+
+- 861d5d7: support license-based entitlements for self-hosted deployments
+
+  Install and replace a license in Console under Tenant settings → License or through the Management API. View its plan, environment, expiration, and refresh status, with weekly refresh and a 30-day grace period before returning to OSS defaults.
+
+  View self-hosted licenses and retrieve production and non-production keys from your account in Logto Cloud Console, without creating a Cloud tenant.
+
+  Licensed deployments can hide Logto branding, upload a custom sign-in UI using their own storage, customize its CSP, increase the SAML application limit, require Console MFA, and invite Console members.
+
+## 1.32.0
+
+### Minor Changes
+
+- 655317e: support Cap as a self-hosted CAPTCHA provider
+
+  [Cap](https://capjs.js.org) is an open-source, self-hosted proof-of-work CAPTCHA. It needs no third-party service, so bot protection keeps working in regions where Cloudflare Turnstile and Google reCAPTCHA are unreachable or unreliable.
+
+  To use it, deploy a publicly reachable [Cap Standalone](https://capjs.js.org/guide/standalone/) instance, create a site key, then go to Console > Security > CAPTCHA and add Cap with the instance endpoint, site key, and secret key. The same configuration is available through the `PUT /api/captcha-provider` Management API with `type: "Cap"`.
+
+  While Cap is the CAPTCHA provider, the sign-in page's Content Security Policy allows the Cap instance and dynamic JavaScript evaluation, which Cap's bot-detection (instrumentation) challenge requires.
+
+- 022317f: add a client compatibility setting so dynamic app clients such as ChatGPT and Codex can receive refresh tokens
+
+  These clients request `offline_access` without `prompt=consent`, so they don't receive a refresh token and users have to sign in again whenever the access token expires. Turn on "Add consent prompt for offline access" under Client compatibility in the dynamic app settings, and Logto adds the consent prompt to these requests. The setting is experimental and off by default, and audit logs show the added `consent` in `prompt`.
+
+- 5bd627f: add a configurable score threshold for reCAPTCHA Enterprise so admins can control how strict CAPTCHA verification is
+- 3f9fd15: add authentication policies for SAML applications
+
+  SAML applications force fresh authentication by default, as before. To let a SAML application reuse an existing Logto session, turn off "Always force authentication" in the application settings, or set `authnRequestConfig.forceAuthn` to `false` using the SAML application Management API. The service provider can still require fresh authentication for a single sign-in with `ForceAuthn="true"` (SAML 2.0 core, section 3.4.1).
+
+  SAML assertions report the actual authentication time.
+
+  To require signed authentication requests, set `authnRequestConfig.requireSignedAuthnRequests` to `true` and provide the service provider’s PEM-encoded RSA X.509 certificate in `authnRequestConfig.signingCertificate`. Both HTTP-POST and HTTP-Redirect signatures are verified. Unsigned requests remain accepted by default.
+
+### Patch Changes
+
+- 0f1af96: support custom user ID when creating a user via the Management API
+
+  This capability is available in Logto Open Source only and is not supported in Logto Cloud.
+
+  `POST /api/users` now accepts an optional `id` (up to 128 characters of letters, numbers, and `_ - . @ : + = |`). This lets you preserve existing user IDs, such as `auth0|abc123` or UUIDs, when migrating users from another identity provider. If the ID is already taken, the request fails with `user.id_already_in_use`.
+
+## 1.31.0
+
+### Minor Changes
+
+- 8b2aaab9b0: add dynamic app support (OAuth Client ID Metadata Documents)
+
+  The dynamic app lets compatible public clients, such as MCP clients, connect to your tenant without registering an application. Following the OAuth Client ID Metadata Documents (CIMD) draft, such a client presents a public HTTPS URL as its `client_id`, and Logto fetches the client metadata from that URL.
+
+  Enable it from the dynamic app card in the third-party app section on the create application page in Console. The switch is tenant-level and off by default, and requires the OIDC provider SSRF protection to be active. Control what dynamic app clients can request with the permission settings on the dynamic app page.
+
+### Patch Changes
+
+- 28c3c9283e: treat Gmail address aliases as the same address in custom email allowlist and blocklist rules
+
+  The matcher treats gmail.com and googlemail.com as equivalent and ignores local-part dots. The Console now shows custom email rule examples and Gmail matching behavior in the field descriptions, with shorter input placeholders.
+
+- 6dd496bd2e: fix OIDC scope error messages showing a raw placeholder instead of the rejected scope
+
+  The `invalid_scope` and `insufficient_scope` messages rendered the literal `{{error_description}}` and `{{scope}}` text because the error handler never passed the values in. They now name the scope that was rejected, so an end user who hits a stale scope on the consent page no longer sees a placeholder in the error toast.
+
+- Updated dependencies [7464c6a97a]
+  - @logto/language-kit@1.4.0
+
+## 1.30.0
+
+### Minor Changes
+
+- 829646a4a: add custom domain verification file support
+
+  Admins can configure small text or JSON verification files for active custom domains. Files are limited to root-level filenames or paths under `/.well-known/`, with caps on count and content size. Exact GET and HEAD matches are served with safe content types while existing Logto routes take precedence.
+
+### Patch Changes
+
+- 292da8db9: support wildcard email address patterns in custom email blocklist rules
+
 ## 1.29.0
 
 ### Minor Changes
@@ -410,14 +542,14 @@
   For example, in the JavaScript SDK:
 
   ```ts
-  import LogtoClient from "@logto/client";
+  import LogtoClient from '@logto/client';
 
   const logtoClient = new LogtoClient(/* your configuration */);
 
   logtoClient.signIn({
-    redirectUri: "https://your-app.com/callback",
+    redirectUri: 'https://your-app.com/callback',
     extraParams: {
-      organization_id: "<organization-id>",
+      organization_id: '<organization-id>',
     },
   });
   ```

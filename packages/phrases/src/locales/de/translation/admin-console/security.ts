@@ -36,6 +36,16 @@ const security = {
       description:
         'Cloudflares intelligente CAPTCHA-Alternative, die einen nicht aufdringlichen Bot-Schutz bietet und gleichzeitig eine nahtlose Benutzererfahrung ohne visuelle Rätsel gewährleistet.',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'Open-Source-CAPTCHA mit Proof-of-Work zum Selbsthosten, ohne visuelle Rätsel oder Drittanbieterdienste – ideal für Regionen, in denen andere CAPTCHA-Dienste nicht erreichbar sind.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'Adaptives GeeTest-CAPTCHA mit lokalisierten Herausforderungen und stabiler Leistung in Festlandchina.',
+    },
   },
   captcha_details: {
     back_to_security: 'Zurück zur Sicherheit',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com (Standard) oder recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA-Schlüssel-ID',
     recaptcha_api_key: 'API-Schlüssel des Projekts',
+    cap_endpoint: 'Cap-Endpunkt',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'Dieser Endpunkt verwendet HTTP und eignet sich nur für die lokale Entwicklung. Browser blockieren HTTP-Anfragen von einer HTTPS-Anmeldeseite, und der geheime Schlüssel würde unverschlüsselt übertragen. Verwende in der Produktion HTTPS.',
+    geetest_captcha_id: 'CAPTCHA-ID',
+    geetest_captcha_key: 'CAPTCHA-Schlüssel',
     deletion_description: 'Sind Sie sicher, dass Sie diesen CAPTCHA-Anbieter löschen möchten?',
     captcha_deleted: 'CAPTCHA-Anbieter erfolgreich gelöscht',
     setup_captcha: 'CAPTCHA einrichten',
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: 'Kontrollkästchen',
     mode_notice:
       'Der Überprüfungsmodus wird in Ihren reCAPTCHA-Schlüsseleinstellungen in der Google Cloud Console definiert. Zum Ändern des Modus hier ist ein passender Schlüsseltyp erforderlich.',
+    score_threshold: 'Punkteschwelle',
+    score_threshold_description:
+      'Bewertungen unterhalb des Schwellenwerts werden abgelehnt. 0.0 erlaubt alle, 1.0 nur perfekte Bewertungen. Standard ist 0.5.',
+    score_threshold_error: 'Die Punkteschwelle muss zwischen 0 und 1 liegen.',
   },
   password_policy: {
     password_requirements: 'Passwortanforderungen',
@@ -151,23 +171,45 @@ const security = {
     manual_unlock: {
       title: 'Manuelle Entsperrung',
       description:
-        'Entsperren Sie Benutzer sofort, indem Sie ihre Identität bestätigen und ihren Bezeichner eingeben.',
-      unblock_by_identifiers: 'Über Bezeichner entsperren',
+        'Entsperren Sie Benutzer sofort, indem Sie ihre Identität bestätigen und ihren Bezeichner oder ihre Benutzer-ID eingeben.',
+      unblock_by_identifiers: 'Über Bezeichner oder Benutzer-ID entsperren',
       modal_description_1:
-        'Ein Bezeichner wurde vorübergehend aufgrund mehrerer fehlgeschlagener Anmelde-/Registrierungsversuche gesperrt. Um die Sicherheit zu schützen, wird der Zugriff nach der Sperrdauer automatisch wiederhergestellt.',
+        'Ein Bezeichner oder eine Benutzer-ID wurde aufgrund mehrerer fehlgeschlagener Anmelde-/Registrierungs- oder Sicherheitsüberprüfungsversuche vorübergehend gesperrt. Um die Sicherheit zu schützen, wird der Zugriff nach der Sperrdauer automatisch wiederhergestellt.',
       modal_description_2:
         ' Entsperren Sie manuell nur, wenn Sie die Identität des Benutzers bestätigt haben und sicherstellen, dass keine unbefugten Zugriffsversuche vorliegen.',
-      placeholder: 'Bezeichner eingeben (E-Mail-Adresse / Telefonnummer / Benutzername)',
+      placeholder:
+        'Bezeichner oder Benutzer-IDs eingeben (E-Mail-Adresse / Telefonnummer / Benutzername / Benutzer-ID)',
       confirm_button_text: 'Jetzt entsperren',
       success_toast: 'Erfolgreich entsperrt',
-      duplicate_identifier_error: 'Bezeichner bereits hinzugefügt',
-      empty_identifier_error: 'Bitte geben Sie mindestens einen Bezeichner ein',
+      duplicate_identifier_error: 'Bezeichner oder Benutzer-ID bereits hinzugefügt',
+      empty_identifier_error:
+        'Bitte geben Sie mindestens einen Bezeichner oder eine Benutzer-ID ein',
     },
   },
   blocklist: {
     card_title: 'E-Mail-Blockliste',
     card_description:
       'Kontrollieren Sie Ihre Benutzerdatenbank, indem Sie risikoreiche oder unerwünschte E-Mail-Adressen blockieren.',
+    custom_email_allowlist: {
+      title: 'Benutzerdefinierte E-Mail-Adressen zulassen',
+      description:
+        'Fügen Sie Regeln hinzu, um nur bestimmte E-Mail-Domains, E-Mail-Adressen oder Wildcard-Muster für neue Registrierungen und neu verknüpfte E-Mails zuzulassen. Beispiele: bar@example.com, @example.com, foo*@example.com, *@example.com. Die Domains gmail.com und googlemail.com werden als gleichwertig behandelt und Punkte im lokalen Teil werden ignoriert, daher entspricht foo.bar@gmail.com der Adresse foobar@googlemail.com.',
+      placeholder: 'E-Mail-Adresse, Domain oder Wildcard-Muster eingeben',
+      duplicate_error:
+        'E-Mail-Adresse, Domain oder Wildcard-E-Mail-Muster wurde bereits hinzugefügt',
+      invalid_format_error:
+        'Muss eine gültige E-Mail-Adresse (bar@example.com), Domain (@example.com) oder ein Wildcard-E-Mail-Muster (foo*@example.com, *@example.com) sein',
+      warnings: {
+        identical_entries:
+          'Einige Allowlist-Einträge sind auch in den Blockierregeln vorhanden. Passende E-Mails können weiterhin blockiert werden.',
+        blocked_exact_email:
+          'Einige exakte Allowlist-E-Mails passen zu einer Blockierregel. Passende E-Mails können weiterhin blockiert werden.',
+        blocked_subaddressing:
+          'Einige Allowlist-Einträge enthalten ein Pluszeichen (+), aber E-Mail-Subaddressing ist blockiert.',
+        effectively_unusable:
+          'Basierend auf diesen Prüfungen lässt die aktuelle Allowlist möglicherweise keine neue E-Mail durch.',
+      },
+    },
     disposable_email: {
       title: 'Blockieren temporärer E-Mail-Adressen',
       description:
@@ -181,12 +223,12 @@ const security = {
     custom_email_address: {
       title: 'Benutzerdefinierte E-Mail-Adressen blockieren',
       description:
-        'Fügen Sie spezifische E-Mail-Domains oder E-Mail-Adressen hinzu, die nicht registrieren oder über die Benutzeroberfläche verknüpfen können.',
-      placeholder:
-        'Geben Sie die blockierte E-Mail-Adresse oder Domain ein (zum Beispiel, bar@example.com, @example.com)',
-      duplicate_error: 'E-Mail-Adresse oder Domain bereits hinzugefügt',
+        'Fügen Sie Regeln hinzu, um bestimmte E-Mail-Domains, E-Mail-Adressen oder Wildcard-Muster an der Registrierung oder Verknüpfung über die Benutzeroberfläche zu hindern. Beispiele: bar@example.com, @example.com, foo*@example.com, *@example.com. Die Domains gmail.com und googlemail.com werden als gleichwertig behandelt und Punkte im lokalen Teil werden ignoriert, daher entspricht foo.bar@gmail.com der Adresse foobar@googlemail.com.',
+      placeholder: 'E-Mail-Adresse, Domain oder Wildcard-Muster eingeben',
+      duplicate_error:
+        'E-Mail-Adresse, Domain oder E-Mail-Adressmuster mit Platzhalter bereits hinzugefügt',
       invalid_format_error:
-        'Muss eine gültige E-Mail-Adresse (bar@example.com) oder Domain (@example.com) sein',
+        'Muss eine gültige E-Mail-Adresse (bar@example.com), Domain (@example.com) oder ein E-Mail-Adressmuster mit Platzhalter (foo*@example.com, *@example.com) sein',
     },
   },
 };

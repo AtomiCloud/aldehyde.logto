@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { UserMfaFlow } from '@/types';
 
 import useSendMfaPayload from './use-send-mfa-payload';
+import useStepUpContext from './use-step-up-context';
 import useToast from './use-toast';
 
 type WebAuthnOptions = WebAuthnRegistrationOptions | WebAuthnAuthenticationOptions;
@@ -27,10 +28,12 @@ const isAuthenticationResponseJSON = (
   return 'signature' in responseJson.response;
 };
 
-const useWebAuthnOperation = () => {
+const useWebAuthnOperation = (flow: UserMfaFlow) => {
   const { t } = useTranslation();
   const { setToast } = useToast();
   const sendMfaPayload = useSendMfaPayload();
+  const { isPureStepUp } = useStepUpContext();
+  const isStepUpVerification = isPureStepUp && flow === UserMfaFlow.MfaVerification;
 
   return useCallback(
     /**
@@ -49,13 +52,13 @@ const useWebAuthnOperation = () => {
 
       const response = await trySafe(
         async () =>
-          parsedRegistrationOptions.success
+          !isStepUpVerification && parsedRegistrationOptions.success
             ? startRegistration(parsedRegistrationOptions.data)
             : startAuthentication(options),
         () => {
           setToast(
             t(
-              parsedRegistrationOptions.success
+              !isStepUpVerification && parsedRegistrationOptions.success
                 ? 'mfa.webauthn_failed_to_create'
                 : 'mfa.webauthn_failed_to_verify'
             )
@@ -84,7 +87,7 @@ const useWebAuthnOperation = () => {
             }
       );
     },
-    [sendMfaPayload, setToast, t]
+    [isStepUpVerification, sendMfaPayload, setToast, t]
   );
 };
 

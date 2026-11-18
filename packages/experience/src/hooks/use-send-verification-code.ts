@@ -3,13 +3,16 @@
 import { SignInIdentifier } from '@logto/schemas';
 import { conditional } from '@silverhand/essentials';
 import { useCallback, useContext, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import CaptchaContext from '@/Providers/CaptchaContextProvider/CaptchaContext';
 import UserInteractionContext from '@/Providers/UserInteractionContextProvider/UserInteractionContext';
 import { sendVerificationCodeApi } from '@/apis/utils';
 import useApi from '@/hooks/use-api';
-import useErrorHandler from '@/hooks/use-error-handler';
+import useErrorHandler, { type ErrorHandlers } from '@/hooks/use-error-handler';
 import useNavigateWithPreservedSearchParams from '@/hooks/use-navigate-with-preserved-search-params';
+import useStepUpContext from '@/hooks/use-step-up-context';
+import useToast from '@/hooks/use-toast';
 import {
   UserFlow,
   type ContinueFlowInteractionEvent,
@@ -28,15 +31,22 @@ const useSendVerificationCode = (flow: UserFlow, replaceCurrentPage?: boolean) =
   const { executeCaptcha } = useContext(CaptchaContext);
 
   const handleError = useErrorHandler();
+  const { setToast } = useToast();
+  const { t } = useTranslation();
   const asyncSendVerificationCode = useApi(sendVerificationCodeApi);
   const { setVerificationId } = useContext(UserInteractionContext);
+  const { isPureStepUp } = useStepUpContext();
 
   const clearErrorMessage = useCallback(() => {
     setErrorMessage('');
   }, []);
 
   const onSubmit = useCallback(
-    async ({ identifier, value }: Payload, interactionEvent?: ContinueFlowInteractionEvent) => {
+    async (
+      { identifier, value }: Payload,
+      interactionEvent?: ContinueFlowInteractionEvent,
+      errorHandlers?: ErrorHandlers
+    ) => {
       const captchaToken = await executeCaptcha();
 
       const [error, result] = await asyncSendVerificationCode(
@@ -62,6 +72,14 @@ const useSendVerificationCode = (flow: UserFlow, replaceCurrentPage?: boolean) =
           'session.email_blocklist.email_subaddressing_not_allowed': (error) => {
             setErrorMessage(error.message);
           },
+          // The hosted email service usage cap has been reached. Show a friendly, generic "couldn't
+          // send the code" toast instead of the raw API "usage limit" message.
+          'connector.usage_limit_exceeded': () => {
+            setToast(t('error.send_verification_code_failed'));
+          },
+          // Per-call overrides win over the defaults above, so a caller can react to a specific
+          // failure differently (e.g. sign-in falls back to the password page on a cap hit).
+          ...errorHandlers,
         });
 
         return;
@@ -81,7 +99,7 @@ const useSendVerificationCode = (flow: UserFlow, replaceCurrentPage?: boolean) =
             // Append the interaction event to the state so that we can use it in the next step
             ...conditional(
               flow === UserFlow.Continue && {
-                state: { interactionEvent },
+                state: { interactionEvent, ...conditional(isPureStepUp && { isStepUp: true }) },
               }
             ),
           }
@@ -92,10 +110,13 @@ const useSendVerificationCode = (flow: UserFlow, replaceCurrentPage?: boolean) =
       asyncSendVerificationCode,
       flow,
       handleError,
+      isPureStepUp,
       navigate,
       replaceCurrentPage,
       setVerificationId,
       executeCaptcha,
+      setToast,
+      t,
     ]
   );
 

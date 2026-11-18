@@ -36,6 +36,8 @@ const description = {
   reset_password: 'Zresetuj hasło',
   reset_password_description:
     'Wpisz {{types, lista(type: złączonych;)}} związanego z twoim kontem, a wyślemy ci kod weryfikacyjny do zresetowania hasła.',
+  reset_password_magic_link_description:
+    'Wpisz adres e-mail powiązany z kontem, aby kontynuować resetowanie hasła.',
   new_password: 'Nowe hasło',
   set_password: 'Ustaw hasło',
   password_changed: 'Hasło zmienione',
@@ -104,6 +106,8 @@ const description = {
     'Twoja firma włączyła jednokrotne logowanie dla konta e-mail {{email}}. Możesz kontynuować logowanie za pomocą następujących dostawców SSO.',
   single_sign_on_enabled: 'To konto ma włączone jednokrotne logowanie.',
   authorize_title: 'Autoryzuj {{name}}',
+  unregistered_client_notice:
+    'Ta aplikacja jest deklarowana samodzielnie przez <hostname>{{host}}</hostname>, łącznie z nazwą i logo. Zweryfikuj nazwę hosta przed kontynuowaniem.',
   request_permission: '{{name}} żąda dostępu do:',
   grant_organization_access: 'Przyznaj dostęp do organizacji:',
   authorize_personal_data_usage: 'Autoryzuj użycie twoich danych osobowych:',
@@ -130,6 +134,8 @@ const description = {
   switch_account_title: 'Jesteś obecnie zalogowany jako {{account}}',
   switch_account_description:
     'Aby kontynuować, zostaniesz wylogowany z obecnego konta i automatycznie przełączony na nowe konto.',
+  continue_to_app_title: 'Powrót do aplikacji',
+  continue_to_app_description: 'Kontynuuj, aby wrócić do aplikacji.',
   about_yourself: 'Opowiedz nam o sobie',
   verify_identity: 'Zweryfikuj swoją tożsamość',
   choose_verification_method: 'Wybierz sposób logowania',
@@ -142,6 +148,7 @@ const description = {
     phone_verification_code: 'Kod weryfikacyjny telefonu',
     verification_code_description: 'Wyślij do {{target}}',
   },
+  select_wallet: 'Wybierz portfel',
 };
 
 export default Object.freeze(description);

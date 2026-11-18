@@ -68,6 +68,8 @@ const user_details = {
   },
   mfa: {
     field_name: '多因素驗證',
+    require_mfa: '要求設定 MFA',
+    require_mfa_description: '此使用者必須至少設定一個 MFA 因素才能完成登入，且無法略過設定。',
     field_description: '這個用戶已啟用2步驗證因素。',
     name_column: '多因素驗證',
     field_description_empty: '此使用者尚未啟用兩步驗證因素。',
@@ -88,6 +90,11 @@ const user_details = {
   reactivate_user_reminder: '你確定要啟用這個用戶嗎？這將允許該用戶的任何登錄嘗試。',
   reactivate_action: '啟用',
   user_reactivated: '用戶已被啟用。',
+  unlock_user: '解鎖使用者',
+  unlock_user_reminder:
+    '確定要解鎖此使用者嗎？此操作將清除因登入和安全驗證失敗而導致的所有鎖定。僅在確認使用者身分並確保沒有未經授權的存取嘗試後，才手動解鎖。',
+  unlock_action: '解鎖',
+  user_unlocked: '使用者已解鎖。',
   roles: {
     name_column: '使用者角色',
     description_column: '描述',
@@ -168,7 +175,7 @@ const user_details = {
     access_created_at_column: '授權建立時間',
     revoke_access_title: '要撤銷存取權嗎？',
     revoke_access_description:
-      '此操作會撤銷該應用程式在所有裝置上存取此使用者帳戶的權限。使用者必須重新授權才能恢復存取。',
+      '此操作會撤銷該應用程式在所有裝置上存取此使用者帳戶的權限。使用者必須重新授權才能恢復存取。先前已簽發的存取權杖可能在過期前仍然有效。',
   },
   connections: {
     title: '連接',

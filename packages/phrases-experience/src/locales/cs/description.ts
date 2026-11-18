@@ -36,6 +36,8 @@ const description = {
   reset_password: 'Obnovit heslo',
   reset_password_description:
     'Zadej {{types, list(type: disjunction;)}} propojené s tvým účtem a pošleme ti ověřovací kód pro obnovení hesla.',
+  reset_password_magic_link_description:
+    'Zadejte e-mailovou adresu přiřazenou k vašemu účtu, abyste mohli pokračovat v resetování hesla.',
   new_password: 'Nové heslo',
   set_password: 'Nastavit heslo',
   password_changed: 'Heslo bylo změněno',
@@ -102,6 +104,8 @@ const description = {
     'Tvá firma povolila jednotné přihlašování (Single Sign-On) pro e-mailový účet {{email}}. Můžeš pokračovat přihlášením přes následující poskytovatele SSO.',
   single_sign_on_enabled: 'Single Sign-On je povoleno pro tento účet',
   authorize_title: 'Autorizovat {{name}}',
+  unregistered_client_notice:
+    'Tato aplikace je deklarována samotným <hostname>{{host}}</hostname>, včetně názvu a loga. Před pokračováním ověř název hostitele.',
   request_permission: '{{name}} žádá o přístup k:',
   grant_organization_access: 'Udělit organizaci přístup:',
   authorize_personal_data_usage: 'Povolit použití tvých osobních údajů:',
@@ -127,6 +131,8 @@ const description = {
   switch_account_title: 'Momentálně jsi přihlášen/a jako {{account}}',
   switch_account_description:
     'Pro pokračování budeš odhlášen/a z aktuálního účtu a automaticky přepnut/a na nový účet.',
+  continue_to_app_title: 'Návrat do aplikace',
+  continue_to_app_description: 'Pokračujte a vraťte se do aplikace.',
   about_yourself: 'Řekni nám něco o sobě',
   verify_identity: 'Ověř svou identitu',
   choose_verification_method: 'Vyber, jak se chceš přihlásit',
@@ -139,6 +145,7 @@ const description = {
     phone_verification_code: 'Ověřovací kód SMS',
     verification_code_description: 'Odeslat na {{target}}',
   },
+  select_wallet: 'Vyberte peněženku',
 };
 
 export default Object.freeze(description);

@@ -9,8 +9,20 @@ import {
   Scopes,
   ApplicationSignInExperiences,
 } from '../db-entries/index.js';
+import { customClientMetadataGuard } from '../foundations/index.js';
 
-export type ApplicationResponse = Application & { isAdmin: boolean };
+/**
+ * The application response returned by Management APIs.
+ *
+ * The legacy client secret is only present before it has been replaced by an internal secret.
+ */
+export const applicationResponseGuard = Applications.guard.extend({
+  secret: Applications.guard.shape.secret.optional(),
+});
+
+export type ApplicationApiResponse = z.infer<typeof applicationResponseGuard>;
+
+export type ApplicationResponse = ApplicationApiResponse & { isAdmin: boolean };
 
 /**
  * An application that is featured for display. Usually used in a list of resources that are
@@ -34,7 +46,15 @@ export const applicationCreateGuard = Applications.createGuard
     tenantId: true,
   })
   .partial()
-  .merge(Applications.createGuard.pick({ name: true, type: true }));
+  .merge(Applications.createGuard.pick({ name: true, type: true }))
+  .extend({
+    /**
+     * Strict on the API input: an unknown key (e.g. a typo such as `refreshTokenTtlInDay`) is
+     * rejected with a 400 instead of being silently stripped and answered 200. This makes the keys
+     * of `customClientMetadataGuard` part of the API contract; see the rules documented there.
+     */
+    customClientMetadata: customClientMetadataGuard.strict().optional(),
+  });
 
 export const applicationPatchGuard = applicationCreateGuard.partial().omit({
   type: true,

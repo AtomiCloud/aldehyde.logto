@@ -1,4 +1,4 @@
-import { OneTimeTokenStatus } from '@logto/schemas';
+import { InteractionEvent, OneTimeTokenStatus } from '@logto/schemas';
 import { generateStandardId } from '@logto/shared';
 
 import { authedAdminApi } from '#src/api/api.js';
@@ -48,12 +48,13 @@ describe('one-time tokens API', () => {
     await deleteOneTimeTokenById(oneTimeToken.id);
   });
 
-  it('should create one-time token with `applicationIds` and `jitOrganizationIds` configured', async () => {
+  it('should create one-time token with context configured', async () => {
     const email = `foo${generateStandardId()}@bar.com`;
     const oneTimeToken = await createOneTimeToken({
       email,
       context: {
         jitOrganizationIds: ['org-1'],
+        interactionEvent: InteractionEvent.ForgotPassword,
       },
     });
 
@@ -61,6 +62,7 @@ describe('one-time tokens API', () => {
     expect(oneTimeToken.email).toBe(email);
     expect(oneTimeToken.context).toEqual({
       jitOrganizationIds: ['org-1'],
+      interactionEvent: InteractionEvent.ForgotPassword,
     });
     expect(oneTimeToken.token.length).toBe(32);
 
@@ -369,10 +371,16 @@ describe('one-time tokens API', () => {
     await updateOneTimeTokenStatus(oneTimeToken1.id, OneTimeTokenStatus.Revoked);
     await verifyOneTimeToken({ email: fooEmail, token: oneTimeToken2.token });
 
-    const revokedTokens = await getOneTimeTokens({ status: OneTimeTokenStatus.Revoked });
+    const revokedTokens = await getOneTimeTokens({
+      email: fooEmail,
+      status: OneTimeTokenStatus.Revoked,
+    });
     expect(revokedTokens).toEqual([{ ...oneTimeToken1, status: OneTimeTokenStatus.Revoked }]);
 
-    const consumedTokens = await getOneTimeTokens({ status: OneTimeTokenStatus.Consumed });
+    const consumedTokens = await getOneTimeTokens({
+      email: fooEmail,
+      status: OneTimeTokenStatus.Consumed,
+    });
     expect(consumedTokens).toEqual([{ ...oneTimeToken2, status: OneTimeTokenStatus.Consumed }]);
 
     const activeBarTokens = await getOneTimeTokens({

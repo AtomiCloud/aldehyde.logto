@@ -8,6 +8,7 @@ import {
 import { pickDefault } from '@logto/shared/esm';
 
 import { mockApplication } from '#src/__mocks__/index.js';
+import RequestError from '#src/errors/RequestError/index.js';
 import { MockTenant } from '#src/test-utils/tenant.js';
 
 const { jest } = import.meta;
@@ -22,7 +23,9 @@ const mockSamlApplication = {
   },
   attributeMapping: {},
   encryption: {},
+  authnRequestConfig: null,
   nameIdFormat: NameIdFormat.Persistent,
+  staticAttributes: {},
 };
 
 const updateSamlApplicationById = jest.fn(async (_, data) => ({
@@ -43,6 +46,12 @@ const tenantContext = new MockTenant(
     samlApplications: {
       updateSamlApplicationById,
     },
+    // The SAML application cap is covered by the quota library tests.
+    quota: {
+      guardTenantUsageByKey: jest.fn(async () => {
+        // Always within the cap.
+      }),
+    },
   }
 );
 
@@ -62,6 +71,89 @@ const buildAccessControl = (
 });
 
 describe('SAML application route', () => {
+  it('POST rejects an invalid signing certificate', async () => {
+    const response = await createSamlApplicationRequest()
+      .post('/saml-applications')
+      .send({
+        name: 'SAML app',
+        authnRequestConfig: { requireSignedAuthnRequests: true, signingCertificate: 'invalid' },
+      });
+    expect(response.status).toBe(400);
+    expect(response.text).toBe(
+      new RequestError('application.saml.invalid_certificate_pem_format').message
+    );
+  });
+
+  it('PATCH requires a certificate to enable signature enforcement', async () => {
+    const response = await createSamlApplicationRequest()
+      .patch('/saml-applications/foo')
+      .send({
+        authnRequestConfig: { requireSignedAuthnRequests: true },
+      });
+    expect(response.status).toBe(400);
+    expect(updateSamlApplicationById).not.toHaveBeenCalled();
+  });
+
+  it.each([{ forceAuthn: true }, { forceAuthn: false }, null])(
+    'PATCH persists authentication policy: %j',
+    async (authnRequestConfig) => {
+      const response = await createSamlApplicationRequest()
+        .patch('/saml-applications/foo')
+        .send({ authnRequestConfig });
+      expect(response.status).toBe(200);
+      expect(updateSamlApplicationById).toHaveBeenCalledWith('foo', { authnRequestConfig });
+      expect(response.body.authnRequestConfig).toEqual(authnRequestConfig);
+    }
+  );
+
+  it('PATCH rejects an invalid authentication policy', async () => {
+    const response = await createSamlApplicationRequest()
+      .patch('/saml-applications/foo')
+      .send({ authnRequestConfig: { forceAuthn: 'true' } });
+    expect(response.status).toBe(400);
+    expect(updateSamlApplicationById).not.toHaveBeenCalled();
+  });
+
+  it('POST rejects a static attribute that conflicts with a user attribute', async () => {
+    const response = await createSamlApplicationRequest()
+      .post('/saml-applications')
+      .send({ name: 'SAML app', staticAttributes: { email: 'x' } });
+    expect(response.status).toBe(400);
+    expect(response.text).toBe(
+      new RequestError('application.saml.static_attribute_name_conflict').message
+    );
+  });
+
+  it.each([{ 'site"': '2' }, { 'site name': '2' }, { site: '' }])(
+    'POST rejects invalid static attributes: %j',
+    async (staticAttributes) => {
+      const response = await createSamlApplicationRequest()
+        .post('/saml-applications')
+        .send({ name: 'SAML app', staticAttributes });
+      expect(response.status).toBe(400);
+    }
+  );
+
+  it('PATCH persists static attributes', async () => {
+    const staticAttributes = { site: '2', account: 'acct-1' };
+    const response = await createSamlApplicationRequest()
+      .patch('/saml-applications/foo')
+      .send({ staticAttributes });
+    expect(response.status).toBe(200);
+    expect(updateSamlApplicationById).toHaveBeenCalledWith('foo', { staticAttributes });
+    expect(response.body.staticAttributes).toEqual(staticAttributes);
+  });
+
+  it('PATCH returns a static attribute conflict as 400', async () => {
+    updateSamlApplicationById.mockRejectedValueOnce(
+      new RequestError({ code: 'application.saml.static_attribute_name_conflict', status: 400 })
+    );
+    const response = await createSamlApplicationRequest()
+      .patch('/saml-applications/foo')
+      .send({ attributeMapping: { email: 'site' } });
+    expect(response.status).toBe(400);
+  });
+
   afterEach(() => {
     updateSamlApplicationById.mockClear();
     findApplicationAccessControl.mockClear();

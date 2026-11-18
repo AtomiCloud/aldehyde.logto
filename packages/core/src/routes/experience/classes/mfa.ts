@@ -11,6 +11,7 @@ import {
   InteractionEvent,
   type JsonObject,
   MfaPolicy,
+  type OrganizationWithRoles,
   type User,
   VerificationType,
   type Mfa as MfaSettings,
@@ -23,7 +24,7 @@ import {
   SignInIdentifier,
 } from '@logto/schemas';
 import { generateStandardId, maskEmail, maskPhone } from '@logto/shared';
-import { cond, condObject, deduplicate, pick } from '@silverhand/essentials';
+import { cond, conditional, condObject, deduplicate, pick } from '@silverhand/essentials';
 import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
@@ -89,7 +90,12 @@ export const sanitizedMfaDataGuard = z.object({
 
 const parseUserMfaData = (
   logtoConfig: JsonObject
-): { enabled?: boolean; skipped?: boolean; additionalBindingSuggestionSkipped?: boolean } => {
+): {
+  enabled?: boolean;
+  skipped?: boolean;
+  required?: boolean;
+  additionalBindingSuggestionSkipped?: boolean;
+} => {
   const parsed = z.object({ [userMfaDataKey]: userMfaDataGuard }).safeParse(logtoConfig);
   return parsed.success ? parsed.data[userMfaDataKey] : {};
 };
@@ -119,6 +125,7 @@ const isPasskeySkipped = (logtoConfig: JsonObject): boolean => {
 
 type SubmitMfaValidationContext = {
   mfaSettings: MfaSettings;
+  organizations?: Readonly<OrganizationWithRoles[]>;
   user: User;
   userFactors: MfaFactor[];
 };
@@ -169,8 +176,28 @@ export class Mfa {
     return [this.#totp, ...(this.#webAuthn ?? []), this.#backupCode].filter(Boolean);
   }
 
+  /** Whether this interaction bound a TOTP or a WebAuthn factor, the factors backup codes back up. */
+  get hasNewAuthenticatorFactor(): boolean {
+    return Boolean(this.#totp ?? this.#webAuthn?.length);
+  }
+
   markMfaEnabled() {
     this.#mfaEnabled = true;
+  }
+
+  /**
+   * Discard everything staged here. Every value is a decision made for the user identified at the
+   * time, from a bound factor's secret to a skip, so none may outlive that identification and be
+   * written to another account. The counterpart of `Profile.cleanUp()`.
+   */
+  cleanUp() {
+    this.#mfaEnabled = undefined;
+    this.#mfaSkipped = undefined;
+    this.#additionalBindingSuggestionSkipped = undefined;
+    this.#passkeySkipped = undefined;
+    this.#totp = undefined;
+    this.#webAuthn = undefined;
+    this.#backupCode = undefined;
   }
 
   /**
@@ -225,8 +252,7 @@ export class Mfa {
     const user = await this.interactionContext.getIdentifiedUser();
 
     assertThat(
-      !isNoSkipMfaPolicy(policy) &&
-        !(await this.isMfaRequiredByUserOrganizations(mfaSettings, user.id)),
+      !isNoSkipMfaPolicy(policy) && !(await this.isMfaRequiredByUser(mfaSettings, user)),
       new RequestError({
         code: 'session.mfa.mfa_policy_not_user_controlled',
         status: 422,
@@ -253,7 +279,7 @@ export class Mfa {
    * - Any existing TOTP factor will be replaced with the new one.
    */
   async addTotpByVerificationId(verificationId: string, log?: LogEntry) {
-    const verificationRecord = this.interactionContext.getVerificationRecordByTypeAndId(
+    const verificationRecord = this.interactionContext.consumeForBindByType(
       VerificationType.TOTP,
       verificationId
     );
@@ -286,7 +312,7 @@ export class Mfa {
    * @throws {RequestError} with status 400 if WebAuthn is not enabled in the sign-in experience
    */
   async addWebAuthnByVerificationId(verificationId: string, log?: LogEntry) {
-    const verificationRecord = this.interactionContext.getVerificationRecordByTypeAndId(
+    const verificationRecord = this.interactionContext.consumeForBindByType(
       VerificationType.WebAuthn,
       verificationId
     );
@@ -311,7 +337,7 @@ export class Mfa {
    * @throws {RequestError} with status 422 if the backup code is the only MFA factor
    */
   async addBackupCodeByVerificationId(verificationId: string, log?: LogEntry) {
-    const verificationRecord = this.interactionContext.getVerificationRecordByTypeAndId(
+    const verificationRecord = this.interactionContext.consumeForBindByType(
       VerificationType.BackupCode,
       verificationId
     );
@@ -351,14 +377,37 @@ export class Mfa {
     await this.checkMfaFactorsEnabledInSignInExperience(newBindMfaFactors);
   }
 
-  /** Assert MFA fulfillment for the current interaction submit. */
-  async assertMfaFulfilled() {
+  /**
+   * Assert MFA fulfillment for the current interaction submit.
+   *
+   * @param asNoSkipMandatoryPolicy Run the check exactly as a no-skip mandatory policy would:
+   * neither the policy's nor the user's skips apply and `user.missing_mfa` is thrown without
+   * `skippable`. A requested class is enforced this way, since the relying party asked for the
+   * class; the tenant's backup-code and additional-factor rules apply unchanged.
+   * @param enrollmentFactors The factors the interaction may bind to reach the class it pursues,
+   * defaulting to the configured factors. A requested class offers only the factors that reach
+   * it, so binding one cannot leave the submission below the class.
+   */
+  async assertMfaFulfilled({
+    asNoSkipMandatoryPolicy = false,
+    enrollmentFactors,
+  }: {
+    asNoSkipMandatoryPolicy?: boolean;
+    enrollmentFactors?: readonly MfaFactor[];
+  } = {}) {
     const submitMfaValidationContext = await this.buildSubmitMfaValidationContext();
 
     // For optional MFA, prompt an MFA enrollment page in prior if user hasn't set up or skipped MFA binding yet.
-    await this.assertOptionalMfaEnablement(submitMfaValidationContext);
+    // A no-skip mandatory requirement has no optional step to offer, exactly as its policy bypasses this check.
+    if (!asNoSkipMandatoryPolicy) {
+      await this.assertOptionalMfaEnablement(submitMfaValidationContext);
+    }
 
-    await this.assertUserMandatoryMfaFulfilled(submitMfaValidationContext);
+    await this.assertUserMandatoryMfaFulfilled(
+      submitMfaValidationContext,
+      asNoSkipMandatoryPolicy,
+      enrollmentFactors
+    );
   }
 
   async assertPasskeySignInFulfilled() {
@@ -370,7 +419,12 @@ export class Mfa {
         Boolean(this.data.webAuthn?.length) ||
         mfaVerifications.some((verification) => verification.type === MfaFactor.WebAuthn);
 
-      assertThat(hasPasskey, new RequestError({ code: 'user.passkey_preferred', status: 422 }));
+      // Do not prompt for a passkey the binding route would reject: a sign-in that skipped MFA
+      // verification may not enroll a factor until it proves an existing one.
+      assertThat(
+        hasPasskey || !(await this.interactionContext.canBindMfa()),
+        new RequestError({ code: 'user.passkey_preferred', status: 422 })
+      );
     }
   }
 
@@ -398,6 +452,37 @@ export class Mfa {
   }
 
   /**
+   * Whether MFA is required for the user, either by an explicit per-user requirement or by
+   * an organization that requires MFA.
+   *
+   * The per-user requirement is independent of `organizationRequiredMfaPolicy`. When no MFA factor
+   * is enabled in the sign-in experience, there is nothing to enforce.
+   */
+  async isMfaRequiredByUser(
+    mfaSettings: MfaSettings,
+    user: Pick<User, 'id' | 'logtoConfig'>,
+    organizations?: Readonly<OrganizationWithRoles[]>
+  ) {
+    if (mfaSettings.factors.length === 0) {
+      return false;
+    }
+
+    if (parseUserMfaData(user.logtoConfig).required === true) {
+      return true;
+    }
+
+    if (mfaSettings.organizationRequiredMfaPolicy !== OrganizationRequiredMfaPolicy.Mandatory) {
+      return false;
+    }
+
+    const resolvedOrganizations =
+      organizations ??
+      (await this.queries.organizations.relations.users.getOrganizationsByUserId(user.id));
+
+    return resolvedOrganizations.some(({ isMfaRequired }) => isMfaRequired);
+  }
+
+  /**
    * If the MFA is not mandatory, prompt policy is NOT `NoPrompt`, and the user has not skipped MFA, suggest MFA binding
    * by throwing a 422 `user.suggest_mfa` error and navigate user to a "Turn on 2-step verification" screen.
    *
@@ -407,7 +492,12 @@ export class Mfa {
   private async assertOptionalMfaEnablement(
     submitMfaValidationContext: SubmitMfaValidationContext
   ) {
-    const { mfaSettings, user: identifiedUser, userFactors } = submitMfaValidationContext;
+    const {
+      mfaSettings,
+      organizations,
+      user: identifiedUser,
+      userFactors,
+    } = submitMfaValidationContext;
     const { policy, factors } = mfaSettings;
 
     // If there are no factors, bypass the check.
@@ -428,7 +518,7 @@ export class Mfa {
       return;
     }
 
-    const { logtoConfig, id: userId } = identifiedUser;
+    const { logtoConfig } = identifiedUser;
 
     const userMfaData = parseUserMfaData(logtoConfig);
     const hasEnabledMfa = this.#mfaEnabled ?? userMfaData.enabled;
@@ -439,27 +529,12 @@ export class Mfa {
       return;
     }
 
-    // If MFA is required by organizations, bypass.
-    if (await this.isMfaRequiredByUserOrganizations(mfaSettings, userId)) {
+    // If MFA is required for the user, bypass the optional suggestion.
+    if (await this.isMfaRequiredByUser(mfaSettings, identifiedUser, organizations)) {
       return;
     }
 
-    // Since MFA `enabled` flag is introduced later, legacy users who don't have the `enabled` flag in their config should
-    // be checked if they have any MFA factors bound, in order to determine whether MFA is effectively enabled for them.
-    if (hasEnabledMfa === undefined) {
-      assertThat(
-        userFactors.length > 0,
-        new RequestError({ code: 'user.suggest_mfa', status: 422 })
-      );
-
-      // Backfill the `enabled` flag for legacy users to avoid repeated suggestions in future interactions.
-      this.markMfaEnabled();
-      return;
-    }
-
-    // Suggest MFA binding if the user has not completed MFA binding, even if the policy is not mandatory,
-    // to encourage better account security.
-    assertThat(hasEnabledMfa, new RequestError({ code: 'user.suggest_mfa', status: 422 }));
+    this.assertMfaEnabledOrSuggest(hasEnabledMfa, userFactors);
   }
 
   /**
@@ -469,9 +544,11 @@ export class Mfa {
    */
   // eslint-disable-next-line complexity
   private async assertUserMandatoryMfaFulfilled(
-    submitMfaValidationContext: SubmitMfaValidationContext
+    submitMfaValidationContext: SubmitMfaValidationContext,
+    asNoSkipMandatoryPolicy = false,
+    enrollmentFactors?: readonly MfaFactor[]
   ) {
-    const { mfaSettings } = submitMfaValidationContext;
+    const { mfaSettings, organizations } = submitMfaValidationContext;
     const { policy, factors } = mfaSettings;
 
     // If there are no factors, then there is nothing to check
@@ -481,6 +558,7 @@ export class Mfa {
 
     // If the policy is prompt only at sign-in, and the event is register, skip the check
     if (
+      !asNoSkipMandatoryPolicy &&
       this.interactionContext.getInteractionEvent() === InteractionEvent.Register &&
       isPromptOnlyAtSignInPolicy(policy)
     ) {
@@ -488,24 +566,26 @@ export class Mfa {
     }
 
     const { user: identifiedUser } = submitMfaValidationContext;
-    const { logtoConfig, id: userId } = identifiedUser;
+    const { logtoConfig } = identifiedUser;
 
-    const isMfaRequiredByUserOrganizations = await this.isMfaRequiredByUserOrganizations(
+    const isMfaRequired = await this.isMfaRequiredByUser(
       mfaSettings,
-      userId
+      identifiedUser,
+      organizations
     );
 
-    // If the policy is no prompt, and mfa is not required by the user organizations, then there is nothing to check
-    if (policy === MfaPolicy.NoPrompt && !isMfaRequiredByUserOrganizations) {
+    // If the policy is no prompt, and MFA is not required for the user, then there is nothing to check
+    if (!asNoSkipMandatoryPolicy && policy === MfaPolicy.NoPrompt && !isMfaRequired) {
       return;
     }
 
     // If the policy is not mandatory and the user has skipped MFA,
-    // and MFA is not required by the user organizations, then there is nothing to check
+    // and MFA is not required for the user, then there is nothing to check
     if (
+      !asNoSkipMandatoryPolicy &&
       !isNoSkipMfaPolicy(policy) &&
       (this.#mfaSkipped ?? isMfaSkipped(logtoConfig)) &&
-      !isMfaRequiredByUserOrganizations
+      !isMfaRequired
     ) {
       return;
     }
@@ -515,25 +595,63 @@ export class Mfa {
 
     const { userFactors: factorsInUser } = submitMfaValidationContext;
     const factorsInBind = this.bindMfaFactorsArray.map(({ type }) => type);
-    const linkedFactors = deduplicate([...factorsInUser, ...factorsInBind]);
-
-    // Assert that the user has at least one of the required factors bound
-    assertThat(
-      configuredFactors.some((factor) => linkedFactors.includes(factor)),
-      new RequestError(
-        { code: 'user.missing_mfa', status: 422 },
-        isNoSkipMfaPolicy(policy) || isMfaRequiredByUserOrganizations
-          ? { availableFactors: configuredFactors }
-          : { availableFactors: configuredFactors, skippable: true }
-      )
+    // A requested `mfa` reaching this check means the proofs are still below the class, and the
+    // implicit email / phone factors derived from the primary identifiers cannot lift them: a
+    // registration has no MFA challenge, and after an email or phone sign-in they are the same
+    // factor as the first one. Only stored and newly bound factors count, so the user is asked to
+    // enroll one that completes the pair.
+    const isPairableFactor = (factor: MfaFactor) =>
+      !asNoSkipMandatoryPolicy ||
+      (factor !== MfaFactor.EmailVerificationCode && factor !== MfaFactor.PhoneVerificationCode);
+    // A registration whose pursued class needs a binding offers only the factors that reach it;
+    // the eligibility's `enrollableFactors` is exactly that list.
+    const requiredFactors = (enrollmentFactors ?? configuredFactors).filter((factor) =>
+      isPairableFactor(factor)
     );
+    const linkedFactors = deduplicate([
+      ...factorsInUser.filter((factor) => isPairableFactor(factor)),
+      ...factorsInBind,
+    ]);
+
+    // Assert that the user has at least one of the required factors bound. With no pairable factor
+    // to offer, a requested `mfa` is left to the assertion in `submit()`.
+    if (
+      requiredFactors.length > 0 &&
+      !requiredFactors.some((factor) => linkedFactors.includes(factor))
+    ) {
+      throw new RequestError(
+        { code: 'user.missing_mfa', status: 422 },
+        {
+          availableFactors: requiredFactors,
+          ...conditional(
+            !asNoSkipMandatoryPolicy &&
+              !isNoSkipMfaPolicy(policy) &&
+              !isMfaRequired && {
+                skippable: true,
+              }
+          ),
+        }
+      );
+    }
+
+    // The same predicate gates the optional suggestion and backup-code enrollment: a sign-in that
+    // may not bind a factor must not ask the user to bind one.
+    const canBindMfa = await this.interactionContext.canBindMfa();
 
     // Optional suggestion: Let Mfa decide whether to suggest additional binding during registration
-    await this.guardAdditionalBindingSuggestion(factorsInUser, configuredFactors, identifiedUser);
+    await this.guardAdditionalBindingSuggestion(
+      factorsInUser,
+      configuredFactors,
+      identifiedUser,
+      canBindMfa
+    );
 
+    // A sign-in that may not bind a factor must not require backup codes it cannot enroll.
     // Assert backup code
     assertThat(
-      !factors.includes(MfaFactor.BackupCode) || linkedFactors.includes(MfaFactor.BackupCode),
+      !factors.includes(MfaFactor.BackupCode) ||
+        linkedFactors.includes(MfaFactor.BackupCode) ||
+        !canBindMfa,
       new RequestError({
         code: 'session.mfa.backup_code_required',
         status: 422,
@@ -552,7 +670,8 @@ export class Mfa {
   private async guardAdditionalBindingSuggestion(
     factorsInUser: MfaFactor[],
     availableFactors: MfaFactor[],
-    identifiedUser: User
+    identifiedUser: User,
+    canBindMfa: boolean
   ) {
     // Respect user's choice to skip suggestion for this interaction.
     if (this.additionalBindingSuggestionSkipped) {
@@ -563,6 +682,13 @@ export class Mfa {
 
     // Respect user's persisted choice to skip additional MFA suggestion.
     if (isAdditionalBindingSuggestionSkipped(logtoConfig)) {
+      return;
+    }
+
+    // A sign-in that may not enroll a factor must not offer enrollment: with existing factors it
+    // would let a password-only visitor bind a new factor without proving one. A user with no
+    // factor yet is onboarding, and registration has just proven the first factor.
+    if (!canBindMfa) {
       return;
     }
 
@@ -620,7 +746,6 @@ export class Mfa {
         primaryPhone &&
         maskPhone(primaryPhone),
     });
-
     throw new RequestError(
       { code: 'session.mfa.suggest_additional_mfa', status: 422 },
       {
@@ -648,17 +773,6 @@ export class Mfa {
     assertThat(isFactorsEnabled, new RequestError({ code: 'session.mfa.mfa_factor_not_enabled' }));
   }
 
-  private async isMfaRequiredByUserOrganizations(mfaSettings: MfaSettings, userId: string) {
-    if (mfaSettings.organizationRequiredMfaPolicy !== OrganizationRequiredMfaPolicy.Mandatory) {
-      return false;
-    }
-
-    const organizations =
-      await this.queries.organizations.relations.users.getOrganizationsByUserId(userId);
-
-    return organizations.some(({ isMfaRequired }) => isMfaRequired);
-  }
-
   /**
    * Build shared context for submit-time MFA fulfillment checks.
    *
@@ -675,13 +789,40 @@ export class Mfa {
       this.signInExperienceValidator.getMfaSettings(),
       this.interactionContext.getIdentifiedUser(),
     ]);
-    const userFactors = await this.getUserMfaFactors({ mfaSettings, user });
+    const [userFactors, organizations] = await Promise.all([
+      this.getUserMfaFactors({ mfaSettings, user }),
+      mfaSettings.factors.length > 0 &&
+      mfaSettings.organizationRequiredMfaPolicy === OrganizationRequiredMfaPolicy.Mandatory
+        ? this.queries.organizations.relations.users.getOrganizationsByUserId(user.id)
+        : undefined,
+    ]);
 
     return {
       mfaSettings,
+      organizations,
       user,
       userFactors,
     };
+  }
+
+  private assertMfaEnabledOrSuggest(hasEnabledMfa: boolean | undefined, userFactors: MfaFactor[]) {
+    // Since MFA `enabled` flag is introduced later, legacy users who don't have the `enabled` flag in their config should
+    // be checked if they have any MFA factors bound, in order to determine whether MFA is effectively enabled for them.
+    if (hasEnabledMfa === undefined) {
+      if (userFactors.length === 0) {
+        throw new RequestError({ code: 'user.suggest_mfa', status: 422 });
+      }
+
+      // Backfill the `enabled` flag for legacy users to avoid repeated suggestions in future interactions.
+      this.markMfaEnabled();
+      return;
+    }
+
+    // Suggest MFA binding if the user has not completed MFA binding, even if the policy is not mandatory,
+    // to encourage better account security.
+    if (!hasEnabledMfa) {
+      throw new RequestError({ code: 'user.suggest_mfa', status: 422 });
+    }
   }
 
   private async getUserMfaFactors({

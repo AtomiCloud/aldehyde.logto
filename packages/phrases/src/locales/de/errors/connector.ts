@@ -16,11 +16,14 @@ const connector = {
     'Die richtige Vorlage in der Connector-Konfiguration konnte nicht gefunden werden.',
   template_not_supported: 'Der Connector unterstützt diesen Vorlagentyp nicht.',
   rate_limit_exceeded: 'Auslöser-Rate-Limit. Bitte versuchen Sie es später erneut.',
+  usage_limit_exceeded: 'Das Nutzungslimit des E-Mail-Dienstes wurde erreicht.',
   not_implemented: '{{method}}: wurde noch nicht implementiert.',
   social_invalid_access_token: 'Der Access Token des Connectors ist ungültig.',
   invalid_auth_code: 'Der Authentifizierungscode des Connectors ist ungültig.',
   social_invalid_id_token: 'Der ID-Token des Connectors ist ungültig.',
   authorization_failed: 'Der Autorisierungsprozess des Benutzers war erfolglos.',
+  social_provider_unreachable:
+    'Der Social-Anbieter konnte nicht erreicht werden ({{reason}}). Bitte versuche es später erneut.',
   social_auth_code_invalid:
     'Es konnte kein Access Token abgerufen werden. Bitte prüfen Sie den Autorisierungscode.',
   more_than_one_sms: 'Die Anzahl der SMS-Connectors ist größer als 1.',

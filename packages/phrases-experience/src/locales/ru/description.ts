@@ -36,6 +36,8 @@ const description = {
   reset_password: 'Забыли пароль',
   reset_password_description:
     'Введите {{types, list(type: disjunction;)}} от вашей учетной записи, и мы вышлем вам код для восстановления пароля.',
+  reset_password_magic_link_description:
+    'Введите адрес электронной почты, связанный с вашей учетной записью, чтобы продолжить сброс пароля.',
   new_password: 'Новый пароль',
   set_password: 'Задать пароль',
   password_changed: 'Пароль изменен',
@@ -105,6 +107,8 @@ const description = {
     'Ваше предприятие включило функцию единого входа для электронной почты {{email}}. Вы можете продолжить вход в систему с помощью следующих провайдеров SSO.',
   single_sign_on_enabled: 'Единый вход в систему включен для этой учетной записи',
   authorize_title: 'Авторизовать {{name}}',
+  unregistered_client_notice:
+    'Это приложение самозаявлено доменом <hostname>{{host}}</hostname>, включая его название и логотип. Проверьте имя хоста, прежде чем продолжить.',
   request_permission: '{{name}} запрашивает доступ к:',
   grant_organization_access: 'Предоставить доступ организации:',
   authorize_personal_data_usage: 'Авторизовать использование ваших личных данных:',
@@ -130,6 +134,8 @@ const description = {
   switch_account_title: 'В настоящее время вы вошли как {{account}}',
   switch_account_description:
     'Чтобы продолжить, вы будете выйти из текущей учетной записи и автоматически переключены на новую учетную запись.',
+  continue_to_app_title: 'Вернуться в приложение',
+  continue_to_app_description: 'Продолжите, чтобы вернуться в приложение.',
   about_yourself: 'Расскажите нам о себе',
   verify_identity: 'Подтвердите свою личность',
   choose_verification_method: 'Выберите способ входа',
@@ -142,6 +148,7 @@ const description = {
     phone_verification_code: 'Код подтверждения по телефону',
     verification_code_description: 'Отправить на {{target}}',
   },
+  select_wallet: 'Выберите кошелек',
 };
 
 export default Object.freeze(description);

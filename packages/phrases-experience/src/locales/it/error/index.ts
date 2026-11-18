@@ -34,14 +34,28 @@ const error = {
   invalid_link: 'Link invalido',
   invalid_link_description: 'Il tuo token monouso potrebbe essere scaduto o non è più valido.',
   captcha_verification_failed: 'Errore durante la verifica del captcha.',
+  send_verification_code_failed: 'Invio del codice di verifica non riuscito. Riprova più tardi.',
+  send_verification_code_failed_use_password:
+    'Invio del codice di verifica non riuscito. Accedi invece con la tua password.',
   terms_acceptance_required: 'Accettazione dei termini richiesta',
   terms_acceptance_required_description: 'Devi accettare i termini per continuare.',
   something_went_wrong: 'Qualcosa è andato storto',
+  account_suspended: 'Account sospeso',
+  account_suspended_description:
+    "Questo account è stato sospeso. Contatta l'amministratore per assistenza.",
   access_denied: 'Accesso negato',
   application_access_denied:
     'Non hai il permesso di accedere a questa applicazione.\nPer assistenza, contatta il tuo amministratore.',
   feature_not_enabled:
     'Non hai il permesso di accedere a questa funzionalità. Per assistenza, contatta il tuo amministratore.',
+  wallet_not_found:
+    "Nessun portafoglio Ethereum rilevato. Installa un'estensione del portafoglio nel browser e riprova.",
+  wallet_not_supported:
+    "L'accesso con portafoglio è supportato solo in un browser con un'estensione del portafoglio installata.",
+  wallet_request_rejected: 'La richiesta del portafoglio è stata rifiutata. Riprova.',
+  wallet_unsupported_chain:
+    'Il tuo portafoglio è connesso a una rete non supportata. Cambia rete e riprova.',
+  wallet_signature_invalid: 'La firma del portafoglio non è valida o è scaduta. Riprova.',
 };
 
 export default Object.freeze(error);

@@ -167,7 +167,7 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
       const { experienceInteraction } = ctx;
 
       assertThat(
-        experienceInteraction.identifiedUserId,
+        experienceInteraction.subjectUserId,
         new RequestError({
           code: 'session.identifier_not_found',
           status: 404,
@@ -177,7 +177,7 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
       const webAuthnVerification = WebAuthnVerification.create(
         libraries,
         queries,
-        experienceInteraction.identifiedUserId
+        experienceInteraction.subjectUserId
       );
 
       const authenticationOptions =
@@ -208,7 +208,8 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
       response: z.object({
         verificationId: z.string(),
       }),
-      status: [200, 400, 404],
+      // 403: identity conflict in a pure step-up
+      status: [200, 400, 403, 404],
     }),
     koaExperienceVerificationsAuditLog({
       type: VerificationType.WebAuthn,
@@ -226,7 +227,7 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
       });
 
       assertThat(
-        experienceInteraction.identifiedUserId,
+        experienceInteraction.subjectUserId,
         new RequestError({
           code: 'session.identifier_not_found',
           status: 404,
@@ -239,10 +240,10 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
       );
 
       assertThat(
-        experienceInteraction.identifiedUserId === webAuthnVerification.userId,
+        experienceInteraction.subjectUserId === webAuthnVerification.userId,
         new RequestError({
           code: 'session.identity_conflict',
-          status: 404,
+          status: experienceInteraction.isStepUp ? 403 : 404,
         })
       );
 
@@ -250,10 +251,11 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
         {
           ctx,
           sentinel,
+          queries,
           action: SentinelActivityAction.WebAuthn,
           identifier: {
             type: AdditionalIdentifier.UserId,
-            value: experienceInteraction.identifiedUserId,
+            value: experienceInteraction.subjectUserId,
           },
           payload: {
             verificationId: webAuthnVerification.id,
@@ -261,6 +263,8 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
         },
         webAuthnVerification.verifyWebAuthnAuthentication(ctx, payload)
       );
+
+      experienceInteraction.consumeForMfa(VerificationType.WebAuthn, webAuthnVerification.id);
 
       await experienceInteraction.save();
 
@@ -380,7 +384,8 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
       response: z.object({
         verificationId: z.string(),
       }),
-      status: [200, 400, 404, 409],
+      // 403: identity conflict in a pure step-up
+      status: [200, 400, 403, 404, 409],
     }),
     koaExperienceVerificationsAuditLog({
       type: VerificationType.SignInPasskey,
@@ -411,9 +416,11 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
 
             const { authenticationOptions } = authenticationOptionsParseResult.data.signInPasskey;
 
+            // Seed the subject so a discoverable credential of another account fails at verification
             return new SignInPasskeyVerification(libraries, queries, {
               id: generateStandardId(),
               type: VerificationType.SignInPasskey,
+              userId: experienceInteraction.subjectUserId,
               verified: false,
               authenticationChallenge: authenticationOptions.challenge,
               authenticationRpId: authenticationOptions.rpId,
@@ -427,7 +434,19 @@ export default function webAuthnVerificationRoute<T extends ExperienceInteractio
         },
       });
 
-      await webAuthnVerification.verifyWebAuthnAuthentication(ctx, payload);
+      try {
+        await webAuthnVerification.verifyWebAuthnAuthentication(ctx, payload);
+      } catch (error: unknown) {
+        if (
+          experienceInteraction.isStepUp &&
+          error instanceof RequestError &&
+          error.code === 'session.identity_conflict'
+        ) {
+          throw new RequestError({ code: 'session.identity_conflict', status: 403 });
+        }
+
+        throw error;
+      }
 
       experienceInteraction.setVerificationRecord(webAuthnVerification);
 

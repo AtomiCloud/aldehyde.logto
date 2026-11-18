@@ -3,7 +3,6 @@ import { createMockUtils } from '@logto/shared/esm';
 import { z } from 'zod';
 
 import { mockUser } from '#src/__mocks__/user.js';
-import { EnvSet } from '#src/env-set/index.js';
 
 const { jest } = import.meta;
 const { mockEsm } = createMockUtils(jest);
@@ -93,8 +92,6 @@ const { default: totpVerificationRoutes } = await import('./totp-verification.js
 const { default: backupCodeVerificationRoutes } = await import('./backup-code-verification.js');
 const { default: webAuthnVerificationRoute } = await import('./web-authn-verification.js');
 
-const originalIsDevFeaturesEnabled = EnvSet.values.isDevFeaturesEnabled;
-
 const createRouter = (): RouterLike => ({
   post: jest.fn<void, [string, ...unknown[]]>(),
 });
@@ -121,17 +118,9 @@ describe('MFA verification routes sentinel guard', () => {
     totpVerificationRecord.verifyUserExistingTotp.mockImplementation(resolveVoid);
     backupCodeVerificationRecord.verify.mockImplementation(resolveVoid);
     webAuthnVerificationRecord.verifyWebAuthnAuthentication.mockImplementation(resolveVoid);
-    // eslint-disable-next-line @silverhand/fp/no-mutation
-    (EnvSet.values as { isDevFeaturesEnabled: boolean }).isDevFeaturesEnabled = false;
   });
 
-  afterEach(() => {
-    // eslint-disable-next-line @silverhand/fp/no-mutation
-    (EnvSet.values as { isDevFeaturesEnabled: boolean }).isDevFeaturesEnabled =
-      originalIsDevFeaturesEnabled;
-  });
-
-  it('applies sentinel to TOTP MFA verification even when dev features are disabled', async () => {
+  it('applies sentinel to TOTP MFA verification', async () => {
     const router = createRouter();
 
     totpVerificationRoutes(
@@ -147,7 +136,9 @@ describe('MFA verification routes sentinel guard', () => {
     const ctx = {
       experienceInteraction: {
         identifiedUserId: mockUser.id,
+        subjectUserId: mockUser.id,
         setVerificationRecord: jest.fn(),
+        consumeForMfa: jest.fn(),
         save: jest.fn().mockImplementation(resolveVoid),
       },
       verificationAuditLog: {
@@ -177,7 +168,7 @@ describe('MFA verification routes sentinel guard', () => {
     );
   });
 
-  it('applies sentinel to backup-code MFA verification even when dev features are disabled', async () => {
+  it('applies sentinel to backup-code MFA verification', async () => {
     const router = createRouter();
 
     backupCodeVerificationRoutes(
@@ -193,7 +184,9 @@ describe('MFA verification routes sentinel guard', () => {
     const ctx = {
       experienceInteraction: {
         identifiedUserId: mockUser.id,
+        subjectUserId: mockUser.id,
         setVerificationRecord: jest.fn(),
+        consumeForMfa: jest.fn(),
         save: jest.fn().mockImplementation(resolveVoid),
       },
       verificationAuditLog: {
@@ -223,7 +216,7 @@ describe('MFA verification routes sentinel guard', () => {
     );
   });
 
-  it('applies sentinel to WebAuthn MFA verification even when dev features are disabled', async () => {
+  it('applies sentinel to WebAuthn MFA verification', async () => {
     const router = createRouter();
 
     webAuthnVerificationRoute(
@@ -243,7 +236,9 @@ describe('MFA verification routes sentinel guard', () => {
     const ctx = {
       experienceInteraction: {
         identifiedUserId: mockUser.id,
+        subjectUserId: mockUser.id,
         getVerificationRecordByTypeAndId: jest.fn(() => webAuthnVerificationRecord),
+        consumeForMfa: jest.fn(),
         save: jest.fn().mockImplementation(resolveVoid),
       },
       verificationAuditLog: {
@@ -265,6 +260,10 @@ describe('MFA verification routes sentinel guard', () => {
     await handler(ctx, jest.fn().mockImplementation(resolveVoid));
 
     expect(ctx.experienceInteraction.getVerificationRecordByTypeAndId).toHaveBeenCalledWith(
+      VerificationType.WebAuthn,
+      webAuthnVerificationRecord.id
+    );
+    expect(ctx.experienceInteraction.consumeForMfa).toHaveBeenCalledWith(
       VerificationType.WebAuthn,
       webAuthnVerificationRecord.id
     );

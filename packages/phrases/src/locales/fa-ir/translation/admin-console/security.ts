@@ -38,6 +38,16 @@ const security = {
       description:
         'جایگزین هوشمند CAPTCHA از Cloudflare که محافظت غیرمزاحم در برابر ربات را با تجربه کاربری روان بدون پازل بصری فراهم می‌کند.',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'CAPTCHA متن‌باز و خودمیزبان مبتنی بر اثبات کار، بدون پازل بصری یا سرویس شخص ثالث؛ مناسب برای مناطقی که سرویس‌های CAPTCHA دیگر در دسترس نیستند.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'CAPTCHA تطبیقی GeeTest با چالش‌های بومی‌سازی‌شده و عملکرد پایدار در چین سرزمین اصلی.',
+    },
   },
   captcha_details: {
     back_to_security: 'بازگشت به امنیت',
@@ -53,6 +63,12 @@ const security = {
     domain_placeholder: 'www.google.com (پیش‌فرض) یا recaptcha.net',
     recaptcha_key_id: 'شناسه کلید reCAPTCHA',
     recaptcha_api_key: 'کلید API پروژه',
+    cap_endpoint: 'نقطه پایانی Cap',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'این نقطه پایانی از HTTP استفاده می‌کند که فقط برای توسعه محلی مناسب است. مرورگرها درخواست‌های HTTP از صفحه ورود HTTPS را مسدود می‌کنند و کلید مخفی بدون رمزگذاری ارسال می‌شود. در محیط تولید از HTTPS استفاده کنید.',
+    geetest_captcha_id: 'شناسه CAPTCHA',
+    geetest_captcha_key: 'کلید CAPTCHA',
     deletion_description: 'آیا مطمئن هستید که می‌خواهید این ارائه‌دهنده CAPTCHA را حذف کنید؟',
     captcha_deleted: 'ارائه‌دهنده CAPTCHA با موفقیت حذف شد',
     setup_captcha: 'راه‌اندازی CAPTCHA',
@@ -61,6 +77,10 @@ const security = {
     mode_checkbox: 'چک‌باکس',
     mode_notice:
       'حالت تأیید در تنظیمات کلید reCAPTCHA شما در Google Cloud Console تعریف می‌شود. تغییر حالت در اینجا نیاز به نوع کلید متناظر دارد.',
+    score_threshold: 'آستانه امتیاز',
+    score_threshold_description:
+      'امتیازهای کمتر از آستانه رد می‌شوند. 0.0 همه را مجاز می‌کند، 1.0 فقط امتیازهای کامل را مجاز می‌کند. پیش‌فرض 0.5 است.',
+    score_threshold_error: 'آستانه امتیاز باید بین 0 و 1 باشد.',
   },
   password_policy: {
     password_requirements: 'الزامات رمز عبور',
@@ -144,23 +164,44 @@ const security = {
     },
     manual_unlock: {
       title: 'باز کردن دستی',
-      description: 'کاربران را فوراً با تأیید هویت و وارد کردن شناسه آن‌ها باز کنید.',
-      unblock_by_identifiers: 'رفع مسدودیت بر اساس شناسه',
+      description:
+        'کاربران را فوراً با تأیید هویت و وارد کردن شناسه یا شناسه کاربری آن‌ها باز کنید.',
+      unblock_by_identifiers: 'رفع مسدودیت بر اساس شناسه یا شناسه کاربری',
       modal_description_1:
-        'یک شناسه به‌دلیل چند تلاش ناموفق ورود/ثبت‌نام موقتاً قفل شده است. برای حفظ امنیت، دسترسی پس از مدت قفل به‌صورت خودکار بازیابی می‌شود.',
+        'یک شناسه یا شناسه کاربری به‌دلیل چند تلاش ناموفق ورود/ثبت‌نام یا تأیید امنیتی موقتاً قفل شده است. برای حفظ امنیت، دسترسی پس از مدت قفل به‌صورت خودکار بازیابی می‌شود.',
       modal_description_2:
         'فقط در صورت تأیید هویت کاربر و اطمینان از نبود تلاش دسترسی غیرمجاز، به‌صورت دستی باز کنید.',
-      placeholder: 'شناسه‌ها را وارد کنید (آدرس ایمیل / شماره تلفن / نام کاربری)',
+      placeholder:
+        'شناسه‌ها یا شناسه‌های کاربری را وارد کنید (آدرس ایمیل / شماره تلفن / نام کاربری / شناسه کاربری)',
       confirm_button_text: 'باز کردن اکنون',
       success_toast: 'با موفقیت باز شد',
-      duplicate_identifier_error: 'شناسه از قبل اضافه شده است',
-      empty_identifier_error: 'لطفاً حداقل یک شناسه وارد کنید',
+      duplicate_identifier_error: 'شناسه یا شناسه کاربری از قبل اضافه شده است',
+      empty_identifier_error: 'لطفاً حداقل یک شناسه یا شناسه کاربری وارد کنید',
     },
   },
   blocklist: {
     card_title: 'لیست مسدود ایمیل',
     card_description:
       'با مسدود کردن آدرس‌های ایمیل پرخطر یا ناخواسته کنترل بیشتری بر پایگاه کاربری خود داشته باشید.',
+    custom_email_allowlist: {
+      title: 'اجازه دادن به ایمیل‌های سفارشی',
+      description:
+        'قوانینی اضافه کنید تا فقط دامنه‌های ایمیل، آدرس‌های ایمیل یا الگوهای wildcard مشخص برای ثبت‌نام‌های جدید و ایمیل‌های تازه متصل‌شده مجاز باشند. مثال‌ها: bar@example.com، @example.com، foo*@example.com، *@example.com. دامنه‌های gmail.com و googlemail.com معادل در نظر گرفته می‌شوند و نقطه‌ها در بخش محلی نادیده گرفته می‌شوند، بنابراین foo.bar@gmail.com با foobar@googlemail.com مطابقت دارد.',
+      placeholder: 'آدرس ایمیل، دامنه یا الگوی wildcard را وارد کنید',
+      duplicate_error: 'آدرس ایمیل، دامنه یا الگوی wildcard قبلاً اضافه شده است',
+      invalid_format_error:
+        'باید یک آدرس ایمیل معتبر (bar@example.com)، دامنه (@example.com) یا الگوی wildcard ایمیل (foo*@example.com، *@example.com) باشد',
+      warnings: {
+        identical_entries:
+          'برخی ورودی‌های allowlist در قوانین block نیز وجود دارند. ایمیل‌های منطبق ممکن است همچنان مسدود شوند.',
+        blocked_exact_email:
+          'برخی ایمیل‌های دقیق allowlist با یک قانون block منطبق هستند. ایمیل‌های منطبق ممکن است همچنان مسدود شوند.',
+        blocked_subaddressing:
+          'برخی ورودی‌های allowlist شامل علامت + هستند، اما subaddressing ایمیل مسدود شده است.',
+        effectively_unusable:
+          'بر اساس این بررسی‌ها، allowlist فعلی ممکن است هیچ ایمیل جدیدی را عبور ندهد.',
+      },
+    },
     disposable_email: {
       title: 'مسدود کردن آدرس‌های ایمیل یک‌بارمصرف',
       description:
@@ -174,10 +215,11 @@ const security = {
     custom_email_address: {
       title: 'مسدود کردن آدرس‌های ایمیل سفارشی',
       description:
-        'دامنه‌های ایمیل یا آدرس‌های ایمیل خاصی را اضافه کنید که نمی‌توانند از طریق رابط کاربری ثبت‌نام یا متصل شوند.',
-      placeholder: 'آدرس یا دامنه ایمیل مسدود را وارد کنید (مثلاً bar@example.com، @example.com)',
-      duplicate_error: 'آدرس یا دامنه ایمیل از قبل اضافه شده است',
-      invalid_format_error: 'باید آدرس ایمیل معتبر (bar@example.com) یا دامنه (@example.com) باشد',
+        'قوانینی اضافه کنید تا دامنه‌های ایمیل، آدرس‌های ایمیل یا الگوهای wildcard مشخص از ثبت‌نام یا اتصال از طریق رابط کاربری منع شوند. مثال‌ها: bar@example.com، @example.com، foo*@example.com، *@example.com. دامنه‌های gmail.com و googlemail.com معادل در نظر گرفته می‌شوند و نقطه‌ها در بخش محلی نادیده گرفته می‌شوند، بنابراین foo.bar@gmail.com با foobar@googlemail.com مطابقت دارد.',
+      placeholder: 'آدرس ایمیل، دامنه یا الگوی wildcard را وارد کنید',
+      duplicate_error: 'آدرس ایمیل، دامنه یا الگوی آدرس ایمیل با وایلدکارد از قبل اضافه شده است',
+      invalid_format_error:
+        'باید آدرس ایمیل معتبر (bar@example.com)، دامنه (@example.com) یا الگوی آدرس ایمیل با وایلدکارد (foo*@example.com، *@example.com) باشد',
     },
   },
 };

@@ -1,5 +1,53 @@
 # @logto/connector-apple
 
+## 1.6.11
+
+### Patch Changes
+
+- e2a3290: use only the verified email from the Apple ID token
+
+  The Apple connector now takes the user's email only from the Apple ID token, and recognizes `email_verified` whether Apple sends it as `true` or `"true"`. When Apple marks the email as unverified, no email is returned. The name still comes from the user details Apple sends on the first authorization.
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- Updated dependencies [800eb13]
+- Updated dependencies [d89e507]
+- Updated dependencies [9d7d323]
+- Updated dependencies [664e6ac]
+- Updated dependencies [05678f9]
+  - @logto/connector-kit@5.2.0
+
+## 1.6.10
+
+### Patch Changes
+
+- bad3854: clarify that the Apple connector's identifier is a Services ID
+
+  The connector's identifier field is now labeled "Services ID" and states that an App ID (bundle ID) is not a valid value, which Apple rejects with an `invalid_client` error.
+
+  Setup instructions cover the Apple Developer portal, so enabling Sign in with Apple no longer appears to require Xcode. Troubleshooting guidance explains `invalid_client` and `invalid_request`, including Apple's caching of identifier configuration, which has been observed to take up to 24 hours to refresh and can make a correct configuration look broken.
+
+## 1.6.9
+
+### Patch Changes
+
+- Updated dependencies [16f4b2e732]
+  - @logto/shared@3.4.3
+  - @logto/connector-kit@5.1.1
+
+## 1.6.8
+
+### Patch Changes
+
+- 4963a55b4: upgrade jose from v5 to v6
+
+  These connectors now use jose 6, which runs on the Web Crypto API instead of Node's crypto module. Token signing and ID token verification behave exactly as before.
+
+- Updated dependencies [58cb52c705]
+  - @logto/shared@3.4.2
+
 ## 1.6.7
 
 ### Patch Changes

@@ -1,5 +1,45 @@
 # @logto/account
 
+## 0.8.0
+
+### Minor Changes
+
+- 249bfda: forward `login_hint` from Account Center URLs to the sign-in page
+
+  Add `login_hint=` to any Account Center URL (for example, `https://auth.foo.com/account/security?login_hint=foo@example.com`) to pre-fill the identifier on the sign-in page when the user needs to sign in. The hint only pre-fills the field, so users can still sign in with a different identifier.
+
+- e8c954a: create self-service personal access tokens in Account Center
+
+  Users can create, rename, and revoke personal access tokens on the Security page of Account Center when the tenant enables the personal access token field. Each token is shown only once at creation and expires within 365 days. The same operations are available through the Account API under `/api/my-account/personal-access-tokens`.
+
+- d65a8dc: support OIDC step-up authentication for Account Center and developer applications
+
+  Clients can request `acr_values` and `max_age` and receive `acr`, `amr`, and `auth_time` in ID tokens, access tokens, and introspection responses. The built-in Account Center now authorizes sensitive Account API operations with a fresh first-party `urn:logto:acr:1fa` access token instead of a separate verification record, and the legacy permission-verification runtime is removed.
+
+### Patch Changes
+
+- 713f77a: stop showing the "Powered by Logto" mark while Account Center loads when Logto branding is hidden
+
+## 0.7.0
+
+### Minor Changes
+
+- c5bd438: add MFA trusted devices with configurable policies and device management
+
+  Configure tenant-wide trusted-device policies and organization-level restrictions. After completing MFA, users can choose whether to trust their device on a dedicated page at the end of sign-in or sign-up, then skip repeated MFA on that browser. Manage trusted devices through Console, Account Center, the Management API, and the Account API, and subscribe to device lifecycle webhooks.
+
+## 0.6.0
+
+### Minor Changes
+
+- c377946617: add a user menu with sign out to the Account Center header
+- b64d46d495: unify social callback URI between Sign-in Experience and Account Center
+- 8b2aaab9b0: add dynamic app support (OAuth Client ID Metadata Documents)
+
+  The dynamic app lets compatible public clients, such as MCP clients, connect to your tenant without registering an application. Following the OAuth Client ID Metadata Documents (CIMD) draft, such a client presents a public HTTPS URL as its `client_id`, and Logto fetches the client metadata from that URL.
+
+  Enable it from the dynamic app card in the third-party app section on the create application page in Console. The switch is tenant-level and off by default, and requires the OIDC provider SSRF protection to be active. Control what dynamic app clients can request with the permission settings on the dynamic app page.
+
 ## 0.5.0
 
 ### Minor Changes

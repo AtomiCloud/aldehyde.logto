@@ -2,24 +2,35 @@ import { TemplateType } from '@logto/connector-kit';
 import {
   AlternativeSignUpIdentifier,
   InteractionEvent,
+  MissingProfile,
+  subjectVerificationCodeIdentifierGuard,
   SignInIdentifier,
   verificationCodeIdentifierGuard,
+  verificationCodeIdentifierPayloadGuard,
 } from '@logto/schemas';
 import type Router from 'koa-router';
 import { z } from 'zod';
 
+import RequestError from '#src/errors/RequestError/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
 import type TenantContext from '#src/tenants/TenantContext.js';
+import assertThat from '#src/utils/assert-that.js';
 
+import type ExperienceInteraction from '../classes/experience-interaction.js';
 import { codeVerificationIdentifierRecordTypeMap } from '../classes/utils.js';
 import {
   createNewCodeVerificationRecord,
   createNewMfaCodeVerificationRecord,
+  createSubjectCodeVerificationRecord,
   getTemplateTypeByEvent,
 } from '../classes/verifications/code-verification.js';
 import { experienceRoutes } from '../const.js';
 import { type ExperienceInteractionRouterContext } from '../types.js';
 
+import {
+  getSubjectCodeRecordIdentifier,
+  getSubjectIdentifier,
+} from './subject-verification-code-helpers.js';
 import {
   sendCode,
   verifyCode,
@@ -27,25 +38,90 @@ import {
   getMfaVerificationType,
 } from './verification-code-helpers.js';
 
+/**
+ * A pure step-up never accepts a raw identifier to verify with: the subject-bound variant reads
+ * it from the pinned user. The one exception is establishing a first factor: a user lacking one
+ * to reach the selected class with may prove control of a new email or phone, which
+ * `POST /profile` then stages, but only while that identifier type is in `establishableMethods`.
+ *
+ * @throws {RequestError} with 403 if a pure step-up supplies an identifier it cannot establish
+ */
+const assertStepUpIdentifierAllowed = async (
+  experienceInteraction: ExperienceInteraction,
+  { type, value }: { type: SignInIdentifier.Email | SignInIdentifier.Phone; value?: string }
+) => {
+  if (!experienceInteraction.isStepUp || value === undefined) {
+    return;
+  }
+
+  const eligibility = await experienceInteraction.getStepUpEligibility();
+
+  assertThat(
+    eligibility?.establishableMethods.includes(
+      type === SignInIdentifier.Email ? MissingProfile.email : MissingProfile.phone
+    ),
+    new RequestError({ code: 'session.step_up.forbidden_identifier', status: 403 })
+  );
+};
+
 export default function verificationCodeRoutes<T extends ExperienceInteractionRouterContext>(
   router: Router<unknown, T>,
   { libraries, queries, sentinel }: TenantContext
 ) {
+  // The subject-bound variant verifies a code for the subject the interaction carries, without a
+  // raw identifier. The union keeps the identifier required for a plain sign-in.
+  const stableBodyGuard = z.object({
+    identifier: verificationCodeIdentifierGuard,
+    interactionEvent: z.nativeEnum(InteractionEvent),
+  });
+  const subjectBodyGuard = z.object({
+    identifier: subjectVerificationCodeIdentifierGuard,
+    interactionEvent: z.literal(InteractionEvent.SignIn),
+  });
+  const bodyGuard = z.union([stableBodyGuard, subjectBodyGuard]);
+  const verifyIdentifierGuard = verificationCodeIdentifierPayloadGuard;
+
   router.post(
     `${experienceRoutes.verification}/verification-code`,
     koaGuard({
-      body: z.object({
-        identifier: verificationCodeIdentifierGuard,
-        interactionEvent: z.nativeEnum(InteractionEvent),
-      }),
+      body: bodyGuard,
       response: z.object({
         verificationId: z.string(),
       }),
-      // 429: rate limited; 501: connector not found
-      status: [200, 400, 404, 422, 429, 501],
+      // 403: a pure step-up supplied a raw identifier
+      // 404: subject-bound variant without a subject; 429: rate limited; 501: connector not found
+      status: [200, 400, 403, 404, 422, 429, 501],
     }),
     async (ctx, next) => {
-      const { identifier, interactionEvent } = ctx.guard.body;
+      const { identifier: identifierPayload, interactionEvent } = ctx.guard.body;
+      const { experienceInteraction } = ctx;
+
+      await assertStepUpIdentifierAllowed(experienceInteraction, identifierPayload);
+
+      // The subject is already authenticated, so no captcha applies
+      if (identifierPayload.value === undefined) {
+        const { userId, identifier } = await getSubjectIdentifier({
+          identifierType: identifierPayload.type,
+          experienceInteraction,
+          queries,
+        });
+
+        ctx.body = await sendCode({
+          identifier,
+          interactionEvent,
+          createVerificationRecord: () =>
+            createSubjectCodeVerificationRecord(libraries, queries, identifier, userId),
+          libraries,
+          queries,
+          ctx,
+        });
+
+        await next();
+        return;
+      }
+
+      const identifier = identifierPayload;
+
       // Require captcha if the user is not identified.
       if (!ctx.experienceInteraction.identifiedUserId) {
         await ctx.experienceInteraction.guardCaptcha();
@@ -88,25 +164,38 @@ export default function verificationCodeRoutes<T extends ExperienceInteractionRo
     `${experienceRoutes.verification}/verification-code/verify`,
     koaGuard({
       body: z.object({
-        identifier: verificationCodeIdentifierGuard,
+        identifier: verifyIdentifierGuard,
         verificationId: z.string(),
         code: z.string(),
       }),
       response: z.object({
         verificationId: z.string(),
       }),
-      // 501: connector not found
-      status: [200, 400, 404, 501],
+      // 403: a pure step-up supplied a raw identifier; 501: connector not found
+      status: [200, 400, 403, 404, 501],
     }),
     async (ctx, next) => {
-      const { verificationId, code, identifier } = ctx.guard.body;
+      const { verificationId, code, identifier: identifierPayload } = ctx.guard.body;
+      const verificationType = codeVerificationIdentifierRecordTypeMap[identifierPayload.type];
+
+      await assertStepUpIdentifierAllowed(ctx.experienceInteraction, identifierPayload);
+
+      const identifier =
+        identifierPayload.value === undefined
+          ? getSubjectCodeRecordIdentifier({
+              verificationType,
+              verificationId,
+              experienceInteraction: ctx.experienceInteraction,
+            })
+          : identifierPayload;
 
       ctx.body = await verifyCode({
         verificationId,
         code,
         identifier,
-        verificationType: codeVerificationIdentifierRecordTypeMap[identifier.type],
+        verificationType,
         sentinel,
+        queries,
         ctx,
       });
 
@@ -139,7 +228,9 @@ export default function verificationCodeRoutes<T extends ExperienceInteractionRo
       ctx.body = await sendCode({
         identifier,
         createVerificationRecord: () =>
-          createNewMfaCodeVerificationRecord(libraries, queries, identifier),
+          createNewMfaCodeVerificationRecord(libraries, queries, identifier, {
+            userId: experienceInteraction.subjectUserId,
+          }),
         libraries,
         queries,
         ctx,
@@ -185,6 +276,7 @@ export default function verificationCodeRoutes<T extends ExperienceInteractionRo
         identifier,
         verificationType: mfaVerificationType,
         sentinel,
+        queries,
         ctx,
       });
 

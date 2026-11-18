@@ -38,6 +38,34 @@
             "type": "string",
             "format": "date-time",
             "description": "The creation time of the SAML application."
+          },
+          "authnRequestConfig": {
+            "type": "object",
+            "nullable": true,
+            "description": "IdP-side authentication policy. Fresh authentication is forced unless forceAuthn is explicitly false, including when this object is null or empty. PATCH replaces this object.",
+            "properties": {
+              "forceAuthn": {
+                "type": "boolean",
+                "default": true,
+                "description": "Require fresh authentication for every sign-in to this application. Set to false to reuse an existing session unless the SP requests ForceAuthn."
+              },
+              "requireSignedAuthnRequests": {
+                "type": "boolean",
+                "default": false,
+                "description": "Require signed AuthnRequests for both HTTP-POST and HTTP-Redirect bindings. Defaults to false."
+              },
+              "signingCertificate": {
+                "type": "string",
+                "description": "PEM-encoded RSA X.509 signing certificate of the service provider. Required when requireSignedAuthnRequests is true. Used independently of the assertion encryption certificate."
+              }
+            }
+          },
+          "staticAttributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Fixed SAML attributes added to every assertion, keyed by attribute name."
           }
         }
       }
@@ -90,6 +118,34 @@
                   "acsUrl": {
                     "type": "string",
                     "description": "The Assertion Consumer Service (ACS) URL where the SAML response will be sent."
+                  },
+                  "authnRequestConfig": {
+                    "type": "object",
+                    "nullable": true,
+                    "description": "IdP-side authentication policy. Fresh authentication is forced unless forceAuthn is explicitly false, including when this object is null or empty. PATCH replaces this object.",
+                    "properties": {
+                      "forceAuthn": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Require fresh authentication for every sign-in to this application. Set to false to reuse an existing session unless the SP requests ForceAuthn."
+                      },
+                      "requireSignedAuthnRequests": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Require signed AuthnRequests for both HTTP-POST and HTTP-Redirect bindings. Defaults to false."
+                      },
+                      "signingCertificate": {
+                        "type": "string",
+                        "description": "PEM-encoded RSA X.509 signing certificate of the service provider. Required when requireSignedAuthnRequests is true. Used independently of the assertion encryption certificate."
+                      }
+                    }
+                  },
+                  "staticAttributes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Fixed SAML attributes added to every assertion, keyed by attribute name. Names may only contain letters, digits, and `_.:/#@-`, and values must be non-empty. After camel-case normalization, names must not conflict with each other or with the user attribute names in the assertion (the mapped names, or `sub`, `email` and `name` when nothing is mapped)."
                   }
                 }
               }
@@ -101,7 +157,7 @@
             "description": "The SAML application was created successfully."
           },
           "400": {
-            "description": "Invalid request body."
+            "description": "Invalid request body, or a static attribute name conflicts with another attribute."
           },
           "422": {
             "description": "Validation error. The ACS URL is invalid or other validation errors."
@@ -150,6 +206,34 @@
                   "acsUrl": {
                     "type": "string",
                     "description": "The Assertion Consumer Service (ACS) URL."
+                  },
+                  "authnRequestConfig": {
+                    "type": "object",
+                    "nullable": true,
+                    "description": "IdP-side authentication policy. Fresh authentication is forced unless forceAuthn is explicitly false, including when this object is null or empty. PATCH replaces this object.",
+                    "properties": {
+                      "forceAuthn": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Require fresh authentication for every sign-in to this application. Set to false to reuse an existing session unless the SP requests ForceAuthn."
+                      },
+                      "requireSignedAuthnRequests": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Require signed AuthnRequests for both HTTP-POST and HTTP-Redirect bindings. Defaults to false."
+                      },
+                      "signingCertificate": {
+                        "type": "string",
+                        "description": "PEM-encoded RSA X.509 signing certificate of the service provider. Required when requireSignedAuthnRequests is true. Used independently of the assertion encryption certificate."
+                      }
+                    }
+                  },
+                  "staticAttributes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Fixed SAML attributes added to every assertion, keyed by attribute name. Names may only contain letters, digits, and `_.:/#@-`, and values must be non-empty. After camel-case normalization, names must not conflict with each other or with the user attribute names in the assertion (the mapped names, or `sub`, `email` and `name` when nothing is mapped). PATCH replaces this object."
                   }
                 }
               }
@@ -159,6 +243,9 @@
         "responses": {
           "200": {
             "description": "The SAML application was updated successfully."
+          },
+          "400": {
+            "description": "Invalid request body, or a static attribute name conflicts with another attribute."
           },
           "404": {
             "description": "The SAML application was not found."
@@ -171,7 +258,6 @@
       "delete": {
         "summary": "Delete SAML application",
         "description": "Delete a SAML application by ID.",
-
         "responses": {
           "204": {
             "description": "The SAML application was deleted successfully."

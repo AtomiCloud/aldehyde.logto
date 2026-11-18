@@ -68,6 +68,10 @@ export enum ProductEvent {
   MfaDisabled = 'mfa disabled',
   CustomDomainCreated = 'custom domain created',
   CustomDomainDeleted = 'custom domain deleted',
+  /** The tenant has turned on dynamic app (CIMD) client access. */
+  DynamicAppEnabled = 'dynamic app enabled',
+  /** The tenant has turned off dynamic app (CIMD) client access. */
+  DynamicAppDisabled = 'dynamic app disabled',
 }
 
 /** The PostHog groups for product events. */
@@ -88,3 +92,9 @@ export const tenantEventDistinctId = 'TENANT_EVENT';
  * identifying the user who initiated the Management API request proxied by the cloud service.
  */
 export const cloudUserIdHeader = 'logto-cloud-user-id';
+
+/**
+ * The header that Logto Cloud's Management API proxy sets to `true` for a caller without write
+ * access. It only narrows what the Management API returns and accepts.
+ */
+export const readOnlyAccessHeader = 'logto-read-only-access';

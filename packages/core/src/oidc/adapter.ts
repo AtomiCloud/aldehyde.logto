@@ -17,6 +17,7 @@ import { getTenantUrls } from '#src/env-set/utils.js';
 import type Queries from '#src/tenants/Queries.js';
 
 import { appLevelAccessControlMetadataKey } from './application-access-control.js';
+import { shouldTreatAsCimdClient } from './cimd/index.js';
 import { getConstantClientMetadata } from './utils.js';
 
 /**
@@ -149,6 +150,7 @@ export default function postgresAdapter(
     const reject = async () => {
       throw new Error('Not implemented');
     };
+
     const transpileClient = (
       {
         id: client_id,
@@ -186,6 +188,15 @@ export default function postgresAdapter(
           return buildDeviceDemoAppClientMetadata(envSet);
         }
 
+        /**
+         * A CIMD client ID is a URL and can never name a registered application, so resolution is
+         * handed over to the provider's native CIMD resolver without a database lookup — every
+         * other identifier keeps folding its lookup failures into `invalid_client`.
+         */
+        if (shouldTreatAsCimdClient(envSet, id)) {
+          return;
+        }
+
         const application = await tryThat(
           findApplicationById(id),
           new errors.InvalidClient(`invalid client ${id}`)
@@ -217,7 +228,18 @@ export default function postgresAdapter(
     find: async (id) => findPayloadById(modelName, id),
     findByUserCode: async (userCode) => findPayloadByUserCode(modelName, userCode),
     findByUid: async (uid) => findPayloadByUid(modelName, uid),
-    consume: async (id) => consumeInstanceById(modelName, id),
+    consume: async (id) => {
+      if (await consumeInstanceById(modelName, id)) {
+        return;
+      }
+
+      // The provider ignores this method's result and checks `consumed` only on the instance it read
+      // earlier, so throw the error it raises for an already consumed one. Unlike that path, this
+      // does not revoke the grant.
+      throw modelName === 'PushedAuthorizationRequest'
+        ? new errors.InvalidRequestUri('request_uri is invalid, expired, or was already used')
+        : new errors.InvalidGrant(`${modelName} already consumed or no longer exists`);
+    },
     destroy: async (id) => destroyInstanceById(modelName, id),
     revokeByGrantId: async (grantId) => revokeInstanceByGrantId(modelName, grantId),
   };

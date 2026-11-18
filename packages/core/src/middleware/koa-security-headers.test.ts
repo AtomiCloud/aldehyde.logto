@@ -1,3 +1,4 @@
+import { CaptchaType, CrossOriginOpenerPolicy } from '@logto/schemas';
 import { GlobalValues } from '@logto/shared';
 import { createMockUtils } from '@logto/shared/esm';
 import { noop } from '@silverhand/essentials';
@@ -32,15 +33,32 @@ const customUiAssets = Object.freeze({ id: 'custom_ui_assets_id', createdAt: 1 }
 type CustomUiSettings = {
   readonly customUiAssets?: { readonly id: string; readonly createdAt: number };
   readonly customUiCsp?: Record<string, string[]>;
+  readonly crossOriginOpenerPolicy?: CrossOriginOpenerPolicy;
+  readonly capEndpoint?: string;
+  readonly captchaProviderType?: CaptchaType;
+  readonly isCaptchaEnabled?: boolean;
 };
 
-const createQueries = ({ customUiAssets, customUiCsp = {} }: CustomUiSettings = {}) =>
+const createQueries = ({
+  customUiAssets,
+  customUiCsp = {},
+  crossOriginOpenerPolicy = CrossOriginOpenerPolicy.UnsafeNone,
+  capEndpoint,
+  captchaProviderType,
+  isCaptchaEnabled = true,
+}: CustomUiSettings = {}) =>
   ({
     signInExperiences: {
       findDefaultSignInExperience: jest.fn(async () => ({
         customUiAssets: customUiAssets ?? null,
         customUiCsp,
+        crossOriginOpenerPolicy,
+        captchaPolicy: { enabled: isCaptchaEnabled },
       })),
+    },
+    captchaProviders: {
+      findCapEndpoint: jest.fn(async () => capEndpoint ?? null),
+      findCaptchaProviderType: jest.fn(async () => captchaProviderType ?? null),
     },
   }) as unknown as Queries;
 
@@ -54,6 +72,15 @@ const getCspDirective = (ctx: Koa.Context, directiveName: string): string | unde
     .split(';')
     .map((directive) => directive.trim())
     .find((directive) => directive.startsWith(`${directiveName} `));
+
+const getCrossOriginOpenerPolicy = async (settings: CustomUiSettings) => {
+  const run = koaExperienceSecurityHeaders('default', createQueries(settings));
+  const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+  await run(ctx, koaNoop);
+
+  return ctx.res.getHeader('Cross-Origin-Opener-Policy');
+};
 
 describe('koaSecurityHeaders() middleware — experience CSP', () => {
   it('adds Custom UI CSP sources to the matching experience directives', async () => {
@@ -93,6 +120,136 @@ describe('koaSecurityHeaders() middleware — experience CSP', () => {
     expect(imageSource).toContain('https:');
     expect(imageSource).toContain('http://localhost:9000');
     expect(imageSource).toContain('http://127.0.0.1:9000');
+  });
+
+  it('allows the Cap Standalone instance when Cap is the captcha provider', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({ capEndpoint: 'https://cap.example.com/base/' })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    expect(getCspDirective(ctx, 'connect-src')).toContain('https://cap.example.com');
+    expect(getCspDirective(ctx, 'connect-src')).not.toContain('https://cap.example.com/base');
+    expect(getCspDirective(ctx, 'script-src')).toContain("'wasm-unsafe-eval'");
+    expect(getCspDirective(ctx, 'script-src')).toContain("'unsafe-eval'");
+    expect(getCspDirective(ctx, 'worker-src')).toBe("worker-src 'self' blob:");
+  });
+
+  it('keeps Custom UI CSP sources along with the Cap sources', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({
+        customUiAssets,
+        customUiCsp: { connectSrc: [customConnectSource] },
+        capEndpoint: 'https://cap.example.com',
+      })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    const connectSource = getCspDirective(ctx, 'connect-src');
+
+    expect(connectSource).toContain(customConnectSource);
+    expect(connectSource).toContain('https://cap.example.com');
+  });
+
+  it('does not allow Cap sources when Cap is not the captcha provider', async () => {
+    const run = koaExperienceSecurityHeaders('default', createQueries());
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    // `'unsafe-eval'` is always allowed outside production, so only check the Cap-specific sources
+    expect(getCspDirective(ctx, 'script-src')).not.toContain("'wasm-unsafe-eval'");
+    expect(getCspDirective(ctx, 'worker-src')).toBeUndefined();
+  });
+
+  it('does not allow Cap sources when CAPTCHA is disabled', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({ capEndpoint: 'https://cap.example.com', isCaptchaEnabled: false })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    expect(getCspDirective(ctx, 'connect-src')).not.toContain('https://cap.example.com');
+    expect(getCspDirective(ctx, 'script-src')).not.toContain("'wasm-unsafe-eval'");
+    expect(getCspDirective(ctx, 'worker-src')).toBeUndefined();
+  });
+
+  it('allows GeeTest sources when GeeTest is the captcha provider', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({ captchaProviderType: CaptchaType.Geetest })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    const scriptSource = getCspDirective(ctx, 'script-src');
+    const connectSource = getCspDirective(ctx, 'connect-src');
+
+    expect(scriptSource).toContain('https://static.geetest.com/');
+    expect(scriptSource).toContain('https://static.geevisit.com/');
+    expect(scriptSource).toContain('https://gcaptcha4.geetest.com/');
+    expect(scriptSource).toContain('https://gcaptcha4.geevisit.com/');
+    expect(scriptSource).toContain('https://gcaptcha4.gsensebot.com/');
+    expect(connectSource).toContain('https://static.geetest.com/');
+    expect(connectSource).toContain('https://gcaptcha4.geetest.com/');
+    expect(connectSource).toContain('https://monitor.geetest.com/');
+  });
+
+  it('keeps Custom UI CSP sources along with the GeeTest sources', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({
+        customUiAssets,
+        customUiCsp: { connectSrc: [customConnectSource] },
+        captchaProviderType: CaptchaType.Geetest,
+      })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    const connectSource = getCspDirective(ctx, 'connect-src');
+
+    expect(connectSource).toContain(customConnectSource);
+    expect(connectSource).toContain('https://gcaptcha4.geetest.com/');
+  });
+
+  it('does not allow GeeTest sources when GeeTest is not the captcha provider', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({ captchaProviderType: CaptchaType.Turnstile })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    expect(getCspDirective(ctx, 'script-src')).not.toContain('https://static.geetest.com/');
+    expect(getCspDirective(ctx, 'connect-src')).not.toContain('https://gcaptcha4.geetest.com/');
+  });
+
+  it('does not allow GeeTest sources when CAPTCHA is disabled', async () => {
+    const run = koaExperienceSecurityHeaders(
+      'default',
+      createQueries({
+        captchaProviderType: CaptchaType.Geetest,
+        isCaptchaEnabled: false,
+      })
+    );
+    const ctx = createMockContext({ method: 'GET', url: '/sign-in' });
+
+    await run(ctx, koaNoop);
+
+    expect(getCspDirective(ctx, 'script-src')).not.toContain('https://static.geetest.com/');
+    expect(getCspDirective(ctx, 'connect-src')).not.toContain('https://gcaptcha4.geetest.com/');
   });
 
   it('does not add Custom UI CSP sources when Custom UI assets are not configured', async () => {
@@ -186,5 +343,38 @@ describe('koaSecurityHeaders() middleware — experience CSP', () => {
     expect(scriptSource).toContain('https://cdn.jsdelivr.net/');
     expect(scriptSource).not.toContain(customScriptSource);
     expect(queries.signInExperiences.findDefaultSignInExperience).not.toHaveBeenCalled();
+  });
+});
+
+describe('koaExperienceSecurityHeaders() middleware — Cross-Origin-Opener-Policy', () => {
+  it.each([CrossOriginOpenerPolicy.SameOriginAllowPopups, CrossOriginOpenerPolicy.SameOrigin])(
+    'sends %s while Custom UI assets are served',
+    async (crossOriginOpenerPolicy) => {
+      await expect(
+        getCrossOriginOpenerPolicy({ customUiAssets, crossOriginOpenerPolicy })
+      ).resolves.toBe(crossOriginOpenerPolicy);
+    }
+  );
+
+  it('sends no header for unsafe-none', async () => {
+    await expect(
+      getCrossOriginOpenerPolicy({
+        customUiAssets,
+        crossOriginOpenerPolicy: CrossOriginOpenerPolicy.UnsafeNone,
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    {},
+    { capEndpoint: 'https://cap.example.com' },
+    { captchaProviderType: CaptchaType.Geetest },
+  ])('sends no header without Custom UI assets (%o)', async (settings) => {
+    await expect(
+      getCrossOriginOpenerPolicy({
+        ...settings,
+        crossOriginOpenerPolicy: CrossOriginOpenerPolicy.SameOrigin,
+      })
+    ).resolves.toBeUndefined();
   });
 });

@@ -7,6 +7,9 @@ const auth = {
   jwt_sub_missing: 'ไม่มี `sub` ใน JWT',
   require_re_authentication: 'ต้องรับรองตัวตนใหม่เพื่อดำเนินการที่ได้รับการป้องกัน',
   exceed_token_limit: 'เกินขีดจำกัดโทเค็น กรุณาติดต่อผู้ดูแลระบบของคุณ',
+  third_party_application_forbidden:
+    'แอปพลิเคชันของบุคคลที่สามไม่สามารถแก้ไขข้อมูลบัญชีผ่าน API นี้ได้',
+  read_only_access: 'ไม่อนุญาตคำขอนี้สำหรับการเข้าถึงแบบอ่านอย่างเดียว',
 };
 
 export default Object.freeze(auth);

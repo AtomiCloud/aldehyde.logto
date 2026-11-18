@@ -1,3 +1,4 @@
+import resource from '@logto/phrases-experience';
 import type { ConsentInfoResponse, RequestErrorBody } from '@logto/schemas';
 import { fireEvent, waitFor } from '@testing-library/react';
 import { HTTPError } from 'ky';
@@ -6,6 +7,8 @@ import UserInteractionContextProvider from '@/Providers/UserInteractionContextPr
 import renderWithPageContext from '@/__mocks__/RenderWithPageContext';
 import SettingsProvider from '@/__mocks__/RenderWithPageContext/SettingsProvider';
 import { consent, getConsentInfo } from '@/apis/consent';
+import { abortInteraction } from '@/apis/experience';
+import { setupI18nForTesting } from '@/jest.setup';
 import { searchKeys } from '@/shared/utils/search-parameters';
 
 import Consent from '.';
@@ -15,10 +18,17 @@ jest.mock('@/apis/consent', () => ({
   getConsentInfo: jest.fn(),
 }));
 
+jest.mock('@/apis/experience', () => ({
+  ...jest.requireActual('@/apis/experience'),
+  abortInteraction: jest.fn(),
+}));
+
 const mockedConsent = consent as jest.MockedFunction<typeof consent>;
 const mockedGetConsentInfo = getConsentInfo as jest.MockedFunction<typeof getConsentInfo>;
+const mockedAbortInteraction = abortInteraction as jest.MockedFunction<typeof abortInteraction>;
 const originalLocation = window.location;
 const assign = jest.fn();
+const replace = jest.fn();
 
 const consentInfo: ConsentInfoResponse = {
   application: {
@@ -40,6 +50,15 @@ const consentInfo: ConsentInfoResponse = {
   missingResourceScopes: [],
   redirectUri: 'https://example.com/callback',
 };
+
+const cimdConsentInfo = (name: string): ConsentInfoResponse => ({
+  ...consentInfo,
+  application: {
+    ...consentInfo.application,
+    id: 'https://client.example.com/oauth/metadata.json',
+    name,
+  },
+});
 
 const createHttpError = (body: RequestErrorBody) =>
   new HTTPError(
@@ -87,6 +106,7 @@ describe('Consent', () => {
       configurable: true,
       value: {
         assign,
+        replace,
         origin: 'http://localhost',
         search: `?${searchKeys.appId}=application_id`,
       },
@@ -140,6 +160,101 @@ describe('Consent', () => {
     expect(queryByText('account_center.sessions.revoke_session')).not.toBeNull();
     expect(queryByText('action.authorize')).toBeNull();
     expect(queryByText('action.cancel')).toBeNull();
+  });
+
+  describe('Cancel', () => {
+    const abortRedirectTo = 'https://example.com/callback?error=access_denied&state=state';
+
+    it('aborts the interaction and follows the returned redirect', async () => {
+      mockedGetConsentInfo.mockResolvedValueOnce(consentInfo);
+      mockedAbortInteraction.mockResolvedValueOnce({ redirectTo: abortRedirectTo });
+
+      const { getByText } = renderConsent();
+
+      await waitFor(() => {
+        expect(getByText('action.cancel')).not.toBeNull();
+      });
+
+      fireEvent.click(getByText('action.cancel'));
+
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith(abortRedirectTo);
+      });
+
+      expect(mockedAbortInteraction).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to the bare redirect when aborting fails', async () => {
+      mockedGetConsentInfo.mockResolvedValueOnce(consentInfo);
+      mockedAbortInteraction.mockRejectedValueOnce(new Error('Interaction not found'));
+
+      const { getByText } = renderConsent();
+
+      await waitFor(() => {
+        expect(getByText('action.cancel')).not.toBeNull();
+      });
+
+      fireEvent.click(getByText('action.cancel'));
+
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith(consentInfo.redirectUri);
+      });
+
+      expect(mockedAbortInteraction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('CIMD client', () => {
+    const { authorize_title, unregistered_client_notice } = resource.en.translation.description;
+
+    // The assertions read the rendered copy, so the phrases have to be the real ones
+    beforeAll(async () => {
+      await setupI18nForTesting({
+        translation: { description: { authorize_title, unregistered_client_notice } },
+      });
+    });
+
+    afterAll(async () => {
+      await setupI18nForTesting();
+    });
+
+    it('renders the identifier host in the notice', async () => {
+      mockedGetConsentInfo.mockResolvedValueOnce(cimdConsentInfo('Fancy client'));
+
+      const { queryByText, unmount } = renderConsent();
+
+      await waitFor(() => {
+        expect(queryByText('client.example.com')).not.toBeNull();
+      });
+
+      expect(queryByText(/is self-declared by/)).not.toBeNull();
+      unmount();
+    });
+
+    it('falls back to the identifier host in the headline when the client declares no name', async () => {
+      mockedGetConsentInfo.mockResolvedValueOnce(cimdConsentInfo(''));
+
+      const { queryByText, unmount } = renderConsent();
+
+      await waitFor(() => {
+        expect(queryByText('Authorize client.example.com')).not.toBeNull();
+      });
+
+      unmount();
+    });
+
+    it('does not render the notice for a registered application', async () => {
+      mockedGetConsentInfo.mockResolvedValueOnce(consentInfo);
+
+      const { queryByText, unmount } = renderConsent();
+
+      await waitFor(() => {
+        expect(queryByText('action.authorize')).not.toBeNull();
+      });
+
+      expect(queryByText(/is self-declared by/)).toBeNull();
+      unmount();
+    });
   });
 
   it('signs out from the access denied page', async () => {

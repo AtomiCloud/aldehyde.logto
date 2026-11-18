@@ -7,7 +7,9 @@ import useToast from '@/hooks/use-toast';
 import PageContext from '../PageContextProvider/PageContext';
 
 import CaptchaContext, { type CaptchaContextType } from './CaptchaContext';
+import { loadCapWidget, solveCapWidget } from './cap';
 import { scriptId } from './constant';
+import { executeGeetest, loadGeetest } from './geetest';
 import { getScript } from './utils';
 
 type Props = {
@@ -18,7 +20,7 @@ const CaptchaContextProvider = ({ children }: Props) => {
   const { experienceSettings, theme } = useContext(PageContext);
   const widgetRef = useRef<HTMLDivElement>(null);
   const { setToast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const captchaPolicy = experienceSettings?.captchaPolicy;
   const captchaConfig = experienceSettings?.captchaConfig;
@@ -27,6 +29,23 @@ const CaptchaContextProvider = ({ children }: Props) => {
 
   const initCaptcha = useCallback(() => {
     if (!isCaptchaRequired || !captchaConfig) {
+      return;
+    }
+
+    if (captchaConfig.type === CaptchaType.Cap) {
+      void loadCapWidget();
+      return;
+    }
+
+    if (captchaConfig.type === CaptchaType.Geetest) {
+      // Load ahead of the first submission; failures surface when the CAPTCHA is executed
+      void (async () => {
+        try {
+          await loadGeetest(captchaConfig.siteKey, i18n.language);
+        } catch {
+          // The error is surfaced when the user submits and `executeCaptcha` rejects
+        }
+      })();
       return;
     }
 
@@ -42,11 +61,33 @@ const CaptchaContextProvider = ({ children }: Props) => {
     /* eslint-enable @silverhand/fp/no-mutation */
 
     document.body.append(script);
-  }, [isCaptchaRequired, captchaConfig]);
+  }, [isCaptchaRequired, captchaConfig, i18n.language]);
 
   const executeCaptcha = useCallback(async () => {
     if (!isCaptchaRequired || !captchaConfig) {
       return;
+    }
+
+    if (captchaConfig.type === CaptchaType.Cap) {
+      if (!widgetRef.current) {
+        return;
+      }
+
+      try {
+        return await solveCapWidget(widgetRef.current);
+      } catch (error: unknown) {
+        setToast(t('error.captcha_verification_failed'));
+        throw error;
+      }
+    }
+
+    if (captchaConfig.type === CaptchaType.Geetest) {
+      try {
+        return await executeGeetest(captchaConfig.siteKey, i18n.language);
+      } catch (error: unknown) {
+        setToast(t('error.captcha_verification_failed'));
+        throw error;
+      }
     }
 
     if (captchaConfig.type === CaptchaType.Turnstile) {
@@ -109,7 +150,7 @@ const CaptchaContextProvider = ({ children }: Props) => {
     return window.grecaptcha.enterprise.execute(captchaConfig.siteKey, {
       action: 'interaction',
     });
-  }, [isCaptchaRequired, captchaConfig, theme, setToast, t]);
+  }, [isCaptchaRequired, captchaConfig, theme, setToast, t, i18n.language]);
 
   useEffect(() => {
     initCaptcha();

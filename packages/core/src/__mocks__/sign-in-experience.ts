@@ -11,6 +11,7 @@ import {
   SignInIdentifier,
   MfaPolicy,
   AgreeToTermsPolicy,
+  CrossOriginOpenerPolicy,
   defaultUsernamePolicy,
 } from '@logto/schemas';
 
@@ -101,6 +102,7 @@ export const mockSignInExperience: SignInExperience = {
   agreeToTermsPolicy: AgreeToTermsPolicy.Automatic,
   customUiAssets: null,
   customUiCsp: {},
+  crossOriginOpenerPolicy: CrossOriginOpenerPolicy.UnsafeNone,
   passwordPolicy: {},
   passwordExpiration: {
     enabled: false,
@@ -112,7 +114,9 @@ export const mockSignInExperience: SignInExperience = {
   adaptiveMfa: {
     enabled: false,
   },
+  trustedDevice: {},
   singleSignOnEnabled: true,
+  ssoBrandingBeforeEmailMatch: true,
   socialSignIn: {},
   supportEmail: null,
   supportWebsiteUrl: null,

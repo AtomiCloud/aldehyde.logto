@@ -292,6 +292,13 @@ const application_details = {
     email_address: '이메일 주소',
     email_address_description: '이메일 주소를 이름 ID 로 사용',
   },
+  saml_idp_authentication: {
+    always_force_authn: '항상 인증 강제',
+    always_force_authn_description:
+      '사용자가 이 애플리케이션에 액세스할 때마다 다시 로그인하도록 요구하여, 이미 Logto 세션이 있어도 상관없습니다.',
+    always_force_authn_tip:
+      '활성화되면, Logto는 항상 이 애플리케이션에 대해 사용자가 다시 로그인하도록 요청합니다. 비활성화되면, ForceAuthn이 없는 한 기존 Logto 세션을 재사용합니다.',
+  },
   saml_encryption_config: {
     encrypt_assertion: 'SAML 주장을 암호화',
     encrypt_assertion_description: '이 옵션을 활성화하면 SAML 주장이 암호화됩니다.',
@@ -315,6 +322,9 @@ const application_details = {
     col_logto_claims: 'Logto 값',
     col_sp_claims: '애플리케이션의 값 이름',
     add_button: '다른 추가',
+    static_attributes_title: '정적 속성',
+    static_attributes_description:
+      '애플리케이션에 필요한 상수 값처럼 모든 SAML 주장에 포함되는 고정 속성을 추가하세요.',
   },
   concurrent_device_limit,
 };

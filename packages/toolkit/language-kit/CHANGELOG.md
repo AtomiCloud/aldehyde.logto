@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.4.1
+
+### Patch Changes
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+## 1.4.0
+
+### Minor Changes
+
+- 7464c6a97a: add es-MX (Spanish, Mexico) support to the sign-in experience, with the phone input defaulting to the Mexico (+52) country code for users whose language is Spanish (Mexico)
+
+  also fix the list formatter placeholders and the remaining untranslated MFA message in the Spanish locales
+
 ## 1.3.0
 
 ### Minor Changes

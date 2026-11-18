@@ -33,12 +33,21 @@ const error = {
   invalid_link: '無效的鏈接',
   invalid_link_description: '你的一次性令牌可能已過期或失效。',
   captcha_verification_failed: '驗證碼驗證失敗。',
+  send_verification_code_failed: '驗證碼傳送失敗，請稍後再試。',
+  send_verification_code_failed_use_password: '驗證碼傳送失敗，請改用密碼登錄。',
   terms_acceptance_required: '需要同意條款',
   terms_acceptance_required_description: '必須同意條款後才能繼續。',
   something_went_wrong: '出錯了',
+  account_suspended: '帳戶已停用',
+  account_suspended_description: '此帳戶已被停用，請聯絡管理員以取得協助。',
   access_denied: '拒絕訪問',
   application_access_denied: '您沒有權限訪問此應用。\n請聯繫管理員尋求幫助。',
   feature_not_enabled: '您沒有權限訪問此功能。請聯繫管理員尋求幫助。',
+  wallet_not_found: '未偵測到以太坊錢包。請安裝瀏覽器錢包擴充功能後重試。',
+  wallet_not_supported: '錢包登入僅支援已安裝錢包擴充功能的瀏覽器。',
+  wallet_request_rejected: '錢包請求已被拒絕，請重試。',
+  wallet_unsupported_chain: '錢包連接了不支援的網絡，請切換網絡後重試。',
+  wallet_signature_invalid: '錢包簽名無效或已過期，請重試。',
 };
 
 export default Object.freeze(error);

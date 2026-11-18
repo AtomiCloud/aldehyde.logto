@@ -1,10 +1,13 @@
 /* eslint-disable max-lines */
 import { defaultUsernamePolicy } from '@logto/core-kit';
 import {
+  CrossOriginOpenerPolicy,
   ForgotPasswordMethod,
   MfaFactor,
   MfaPolicy,
+  resolveLicenseQuota,
   type AccountCenter,
+  type LicenseQuota,
   type SignInExperience,
   type CreateSignInExperience,
 } from '@logto/schemas';
@@ -28,6 +31,9 @@ import {
   mockDemoSocialConnector,
 } from '#src/__mocks__/index.js';
 import { EnvSet } from '#src/env-set/index.js';
+import RequestError from '#src/errors/RequestError/index.js';
+import LicenseReader from '#src/license/LicenseReader.js';
+import { buildLicensePayload } from '#src/test-utils/license.js';
 import { MockTenant } from '#src/test-utils/tenant.js';
 import { createRequester } from '#src/utils/test-utils.js';
 
@@ -94,23 +100,21 @@ const originalIsDevFeaturesEnabled = EnvSet.values.isDevFeaturesEnabled;
 const originalIsCloud = EnvSet.values.isCloud;
 const originalIsProduction = EnvSet.values.isProduction;
 
-const createDevFeaturesDisabledRequester = async () => {
-  jest.resetModules();
-
-  await mockEsmWithActual('#src/env-set/index.js', () => ({
-    EnvSet: {
-      values: {
-        isDevFeaturesEnabled: false,
-        isCloud: false,
-        isProduction: false,
-        isUnitTest: true,
-      },
-    },
-  }));
+const createDevFeaturesDisabledRequester = (
+  signInExperience: SignInExperience = mockSignInExperience
+) => {
+  // Toggle EnvSet in place instead of resetting modules and re-importing the route graph,
+  // which is slow enough to hit the default Jest timeout on CI.
+  // eslint-disable-next-line @silverhand/fp/no-mutation -- Toggle EnvSet in this route test without reloading mocked modules.
+  (EnvSet.values as { isDevFeaturesEnabled: boolean }).isDevFeaturesEnabled = false;
+  // eslint-disable-next-line @silverhand/fp/no-mutation -- Toggle EnvSet in this route test without reloading mocked modules.
+  (EnvSet.values as { isCloud: boolean }).isCloud = false;
+  // eslint-disable-next-line @silverhand/fp/no-mutation -- Toggle EnvSet in this route test without reloading mocked modules.
+  (EnvSet.values as { isProduction: boolean }).isProduction = false;
 
   const updateDefaultSignInExperience = jest.fn(
     async (data: Partial<CreateSignInExperience>): Promise<SignInExperience> => ({
-      ...mockSignInExperience,
+      ...signInExperience,
       ...data,
     })
   );
@@ -120,7 +124,7 @@ const createDevFeaturesDisabledRequester = async () => {
     {
       signInExperiences: {
         updateDefaultSignInExperience,
-        findDefaultSignInExperience: jest.fn().mockResolvedValue(mockSignInExperience),
+        findDefaultSignInExperience: jest.fn().mockResolvedValue(signInExperience),
       },
       customPhrases: { findAllCustomLanguageTags: async () => [] },
     },
@@ -128,9 +132,8 @@ const createDevFeaturesDisabledRequester = async () => {
     { signInExperiences: { validateLanguageInfo: jest.fn() } }
   );
 
-  const routes = await pickDefault(import('./index.js'));
   const requester = createRequester({
-    authedRoutes: routes,
+    authedRoutes: signInExperiencesRoutes,
     tenantContext: tenant,
   });
 
@@ -172,6 +175,22 @@ const createSignUpProfileFieldsRequester = (
   });
 
   return { requester, updateDefaultSignInExperience, normalizeProfileFields };
+};
+
+/**
+ * Install a license on the self-hosted deployment under test, granting the given entitlements.
+ * Stubbing the reader keeps the database and the signature check out of these route tests.
+ */
+const installLicense = (quota: Partial<LicenseQuota>) => {
+  const payload = buildLicensePayload({ quota });
+
+  jest.spyOn(LicenseReader.shared, 'read').mockResolvedValue({
+    payload,
+    installedAt: new Date().toISOString(),
+    quota: resolveLicenseQuota(payload.quota),
+    lastRefreshedAt: new Date().toISOString(),
+    graceEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  });
 };
 
 const createCustomUiCspRequester = async ({
@@ -721,6 +740,28 @@ describe('PATCH /sign-in-exp', () => {
     });
   });
 
+  it('should accept custom allowlist in email blocklist policy', async () => {
+    const emailBlocklistPolicy = {
+      customAllowlist: ['foo@bar.com', '@example.com', 'foo@bar.com'],
+      customBlocklist: ['@blocked.com'],
+    };
+
+    const response = await signInExperienceRequester.patch('/sign-in-exp').send({
+      emailBlocklistPolicy,
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        ...mockSignInExperience,
+        emailBlocklistPolicy: {
+          customAllowlist: ['foo@bar.com', '@example.com'],
+          customBlocklist: ['@blocked.com'],
+        },
+      },
+    });
+  });
+
   it('should reject phone forgot password method when phone connector is not available', async () => {
     mockGetLogtoConnectors.mockResolvedValueOnce([]);
 
@@ -787,17 +828,53 @@ describe('PATCH /sign-in-exp', () => {
 });
 
 describe('sign-in experience routes with dev features disabled', () => {
-  it('should include adaptive mfa in GET response', async () => {
-    const { requester } = await createDevFeaturesDisabledRequester();
+  afterEach(() => {
+    // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
+    (EnvSet.values as { isDevFeaturesEnabled: boolean }).isDevFeaturesEnabled =
+      originalIsDevFeaturesEnabled;
+    // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
+    (EnvSet.values as { isCloud: boolean }).isCloud = originalIsCloud;
+    // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
+    (EnvSet.values as { isProduction: boolean }).isProduction = originalIsProduction;
+  });
+
+  it('should include trusted-device policy in GET response', async () => {
+    const trustedDevice = { enabled: true, durationDays: 90 };
+    const { requester } = createDevFeaturesDisabledRequester({
+      ...mockSignInExperience,
+      trustedDevice,
+    });
 
     const response = await requester.get('/sign-in-exp');
 
     expect(response.status).toEqual(200);
-    expect(response.body).toEqual(mockSignInExperience);
+    expect(response.body).toEqual(expect.objectContaining({ trustedDevice }));
+  });
+
+  it('should persist trusted-device policy updates', async () => {
+    const { requester, updateDefaultSignInExperience } = createDevFeaturesDisabledRequester();
+    const trustedDevice = { enabled: true, durationDays: 365 };
+
+    const response = await requester.patch('/sign-in-exp').send({ trustedDevice });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ trustedDevice });
+    expect(response.body).toEqual(expect.objectContaining({ trustedDevice }));
+  });
+
+  it('should include adaptive mfa in GET response', async () => {
+    const { requester } = createDevFeaturesDisabledRequester();
+
+    const response = await requester.get('/sign-in-exp');
+
+    expect(response.status).toEqual(200);
+    expect(response.body).toEqual(
+      expect.objectContaining({ adaptiveMfa: mockSignInExperience.adaptiveMfa })
+    );
   });
 
   it('should persist adaptive mfa updates when the payload is otherwise valid', async () => {
-    const { requester, updateDefaultSignInExperience } = await createDevFeaturesDisabledRequester();
+    const { requester, updateDefaultSignInExperience } = createDevFeaturesDisabledRequester();
 
     const adaptiveMfa = { enabled: true };
     const mfa = {
@@ -806,14 +883,39 @@ describe('sign-in experience routes with dev features disabled', () => {
     };
 
     const response = await requester.patch('/sign-in-exp').send({ adaptiveMfa, mfa });
-
     expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ adaptiveMfa, mfa });
     expect(response.status).toEqual(200);
-    expect(response.body).toEqual({
+    expect(response.body).toEqual(expect.objectContaining({ adaptiveMfa, mfa }));
+  });
+
+  it('should include custom allowlist in GET response', async () => {
+    const emailBlocklistPolicy = {
+      customAllowlist: ['@allowed.com'],
+      customBlocklist: ['@blocked.com'],
+    };
+    const { requester } = createDevFeaturesDisabledRequester({
       ...mockSignInExperience,
-      adaptiveMfa,
-      mfa,
+      emailBlocklistPolicy,
     });
+
+    const response = await requester.get('/sign-in-exp');
+
+    expect(response.status).toEqual(200);
+    expect(response.body.emailBlocklistPolicy).toEqual(emailBlocklistPolicy);
+  });
+
+  it('should accept custom allowlist updates', async () => {
+    const { requester, updateDefaultSignInExperience } = createDevFeaturesDisabledRequester();
+    const emailBlocklistPolicy = {
+      customAllowlist: ['@allowed.com'],
+    };
+
+    const response = await requester.patch('/sign-in-exp').send({
+      emailBlocklistPolicy,
+    });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ emailBlocklistPolicy });
   });
 });
 
@@ -875,6 +977,7 @@ describe('PATCH /sign-in-exp signUpProfileFields', () => {
 
 describe('PATCH /sign-in-exp customUiCsp', () => {
   afterEach(() => {
+    jest.restoreAllMocks();
     // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
     (EnvSet.values as { isDevFeaturesEnabled: boolean }).isDevFeaturesEnabled =
       originalIsDevFeaturesEnabled;
@@ -987,6 +1090,79 @@ describe('PATCH /sign-in-exp customUiCsp', () => {
     expect(guardTenantUsageByKey).not.toHaveBeenCalled();
   });
 
+  it('should reject hiding the Logto branding outside Cloud without a license', async () => {
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+
+    const response = await requester.patch('/sign-in-exp').send({ hideLogtoBranding: true });
+
+    expect(response.status).toEqual(400);
+    expect(updateDefaultSignInExperience).not.toHaveBeenCalled();
+  });
+
+  it('should allow hiding the Logto branding outside Cloud with a license that grants it', async () => {
+    installLicense({ hideLogtoBranding: true });
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+
+    const response = await requester.patch('/sign-in-exp').send({ hideLogtoBranding: true });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ hideLogtoBranding: true });
+  });
+
+  it('should reject hiding the Logto branding outside Cloud with a license that only grants Bring your UI', async () => {
+    installLicense({ bringYourUi: true });
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+
+    const response = await requester.patch('/sign-in-exp').send({ hideLogtoBranding: true });
+
+    expect(response.status).toEqual(400);
+    expect(updateDefaultSignInExperience).not.toHaveBeenCalled();
+  });
+
+  it('should allow non-empty Custom UI CSP updates outside Cloud with a license that grants Bring your UI', async () => {
+    installLicense({ bringYourUi: true });
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+    const customUiCsp = { scriptSrc: ['https://example.com'] };
+
+    const response = await requester.patch('/sign-in-exp').send({ customUiCsp });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ customUiCsp });
+  });
+
+  it('should reject non-empty Custom UI CSP updates outside Cloud with a license that only grants hiding the branding', async () => {
+    installLicense({ hideLogtoBranding: true });
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+
+    const response = await requester.patch('/sign-in-exp').send({
+      customUiCsp: { scriptSrc: ['https://example.com'] },
+    });
+
+    expect(response.status).toEqual(400);
+    expect(updateDefaultSignInExperience).not.toHaveBeenCalled();
+  });
+
+  it('should not read the license on Cloud', async () => {
+    const read = jest.spyOn(LicenseReader.shared, 'read');
+    const { requester, guardTenantUsageByKey } = await createCustomUiCspRequester();
+
+    const response = await requester.patch('/sign-in-exp').send({ hideLogtoBranding: true });
+
+    expect(response.status).toEqual(200);
+    expect(read).not.toHaveBeenCalled();
+    expect(guardTenantUsageByKey).toHaveBeenCalledWith('bringYourUiEnabled');
+  });
+
   it('should allow clearing Custom UI CSP config without checking quota', async () => {
     const { requester, updateDefaultSignInExperience, guardTenantUsageByKey } =
       await createCustomUiCspRequester({ isDevFeaturesEnabled: false });
@@ -1023,6 +1199,107 @@ describe('PATCH /sign-in-exp customUiCsp', () => {
         },
       })
     ).resolves.toMatchObject({ status: 400 });
+  });
+});
+
+describe('PATCH /sign-in-exp crossOriginOpenerPolicy', () => {
+  const crossOriginOpenerPolicy = CrossOriginOpenerPolicy.SameOriginAllowPopups;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
+    (EnvSet.values as { isDevFeaturesEnabled: boolean }).isDevFeaturesEnabled =
+      originalIsDevFeaturesEnabled;
+    // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
+    (EnvSet.values as { isCloud: boolean }).isCloud = originalIsCloud;
+    // eslint-disable-next-line @silverhand/fp/no-mutation -- Restore EnvSet after each feature-gate test.
+    (EnvSet.values as { isProduction: boolean }).isProduction = originalIsProduction;
+  });
+
+  it('should persist a policy and guard the Bring your UI quota', async () => {
+    const { requester, updateDefaultSignInExperience, guardTenantUsageByKey } =
+      await createCustomUiCspRequester();
+
+    const response = await requester.patch('/sign-in-exp').send({ crossOriginOpenerPolicy });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ crossOriginOpenerPolicy });
+    expect(response.body).toMatchObject({ crossOriginOpenerPolicy });
+    expect(guardTenantUsageByKey).toHaveBeenCalledWith('bringYourUiEnabled');
+  });
+
+  it('should persist a policy when dev features are disabled', async () => {
+    const { requester, updateDefaultSignInExperience, guardTenantUsageByKey } =
+      await createCustomUiCspRequester({ isDevFeaturesEnabled: false });
+
+    const response = await requester.patch('/sign-in-exp').send({ crossOriginOpenerPolicy });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ crossOriginOpenerPolicy });
+    expect(guardTenantUsageByKey).toHaveBeenCalledWith('bringYourUiEnabled');
+  });
+
+  it('should not persist a policy when the Bring your UI quota guard rejects', async () => {
+    const { requester, updateDefaultSignInExperience, guardTenantUsageByKey } =
+      await createCustomUiCspRequester();
+    guardTenantUsageByKey.mockRejectedValueOnce(
+      new RequestError({ code: 'subscription.limit_exceeded', status: 403 })
+    );
+
+    const response = await requester.patch('/sign-in-exp').send({ crossOriginOpenerPolicy });
+
+    expect(response.status).toEqual(403);
+    expect(updateDefaultSignInExperience).not.toHaveBeenCalled();
+  });
+
+  it('should reject a policy outside Cloud without a license that grants Bring your UI', async () => {
+    installLicense({ hideLogtoBranding: true });
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+
+    const response = await requester.patch('/sign-in-exp').send({ crossOriginOpenerPolicy });
+
+    expect(response.status).toEqual(400);
+    expect(updateDefaultSignInExperience).not.toHaveBeenCalled();
+  });
+
+  it('should allow a policy outside Cloud with a license that grants Bring your UI', async () => {
+    installLicense({ bringYourUi: true });
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester({
+      isCloud: false,
+    });
+
+    const response = await requester.patch('/sign-in-exp').send({ crossOriginOpenerPolicy });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({ crossOriginOpenerPolicy });
+  });
+
+  it('should allow unsafe-none without Bring your UI', async () => {
+    const { requester, updateDefaultSignInExperience, guardTenantUsageByKey } =
+      await createCustomUiCspRequester({ isCloud: false });
+
+    const response = await requester
+      .patch('/sign-in-exp')
+      .send({ crossOriginOpenerPolicy: CrossOriginOpenerPolicy.UnsafeNone });
+
+    expect(response.status).toEqual(200);
+    expect(updateDefaultSignInExperience).toHaveBeenCalledWith({
+      crossOriginOpenerPolicy: CrossOriginOpenerPolicy.UnsafeNone,
+    });
+    expect(guardTenantUsageByKey).not.toHaveBeenCalled();
+  });
+
+  it('should reject an unknown policy', async () => {
+    const { requester, updateDefaultSignInExperience } = await createCustomUiCspRequester();
+
+    const response = await requester
+      .patch('/sign-in-exp')
+      .send({ crossOriginOpenerPolicy: 'same-site' });
+
+    expect(response.status).toEqual(400);
+    expect(updateDefaultSignInExperience).not.toHaveBeenCalled();
   });
 });
 

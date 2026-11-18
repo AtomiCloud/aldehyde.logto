@@ -36,6 +36,16 @@ const security = {
       description:
         'Cloudflare의 스마트 CAPTCHA 대안으로, 시각적 퍼즐 없이 원활한 사용자 경험을 보장하면서 비침투적인 봇 보호를 제공합니다.',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        '시각적 퍼즐이나 타사 서비스 없이 작업 증명을 사용하는 오픈 소스 자체 호스팅 CAPTCHA로, 다른 CAPTCHA 서비스에 접근할 수 없는 지역에 적합합니다.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        '중국 본토에서 안정적으로 동작하며 현지화된 챌린지를 제공하는 GeeTest 적응형 CAPTCHA입니다.',
+    },
   },
   captcha_details: {
     back_to_security: '보안으로 돌아가기',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com (기본값) 또는 recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA 키 ID',
     recaptcha_api_key: '프로젝트의 API 키',
+    cap_endpoint: 'Cap 엔드포인트',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      '이 엔드포인트는 HTTP를 사용하므로 로컬 개발에만 적합합니다. 브라우저는 HTTPS 로그인 페이지의 HTTP 요청을 차단하며, 시크릿 키가 암호화되지 않은 채 전송됩니다. 프로덕션에서는 HTTPS를 사용하세요.',
+    geetest_captcha_id: 'CAPTCHA ID',
+    geetest_captcha_key: 'CAPTCHA 키',
     deletion_description: '이 CAPTCHA 제공자를 삭제하시겠습니까?',
     captcha_deleted: 'CAPTCHA 제공자가 성공적으로 삭제되었습니다',
     setup_captcha: 'CAPTCHA 설정',
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: '체크박스',
     mode_notice:
       '인증 모드는 Google Cloud Console의 reCAPTCHA 키 설정에서 정의됩니다. 여기서 모드를 변경하려면 일치하는 키 유형이 필요합니다.',
+    score_threshold: '점수 임계값',
+    score_threshold_description:
+      '임계값보다 낮은 점수는 거부됩니다. 0.0은 모든 점수를 허용하고 1.0은 완벽한 점수만 허용합니다. 기본값은 0.5입니다.',
+    score_threshold_error: '점수 임계값은 0에서 1 사이여야 합니다.',
   },
   password_policy: {
     password_requirements: '비밀번호 요구사항',
@@ -140,22 +160,42 @@ const security = {
     },
     manual_unlock: {
       title: '수동 잠금 해제',
-      description: '사용자의 신원을 확인하고 식별자를 입력하여 즉시 사용자를 잠금 해제합니다.',
-      unblock_by_identifiers: '식별자로 차단 해제',
+      description:
+        '사용자의 신원을 확인하고 식별자 또는 사용자 ID를 입력하여 즉시 사용자를 잠금 해제합니다.',
+      unblock_by_identifiers: '식별자 또는 사용자 ID로 차단 해제',
       modal_description_1:
-        '여러 번의 로그인/가입 시도 실패로 인해 식별자가 일시적으로 잠겼습니다. 보안을 위해 잠금 기간 후 접근이 자동으로 복원됩니다.',
+        '여러 번의 로그인/가입 또는 보안 인증 시도 실패로 인해 식별자 또는 사용자 ID가 일시적으로 잠겼습니다. 보안을 위해 잠금 기간 후 접근이 자동으로 복원됩니다.',
       modal_description_2:
         ' 사용자의 신원을 확인하고 비인가 접근 시도가 없는 경우에만 수동으로 잠금을 해제하십시오.',
-      placeholder: '식별자 입력 (이메일 주소 / 전화 번호 / 사용자 이름)',
+      placeholder: '식별자 또는 사용자 ID 입력 (이메일 주소 / 전화 번호 / 사용자 이름 / 사용자 ID)',
       confirm_button_text: '지금 잠금 해제',
       success_toast: '성공적으로 잠금 해제되었습니다',
-      duplicate_identifier_error: '식별자가 이미 추가되었습니다',
-      empty_identifier_error: '최소 하나의 식별자를 입력하세요',
+      duplicate_identifier_error: '식별자 또는 사용자 ID가 이미 추가되었습니다',
+      empty_identifier_error: '최소 하나의 식별자 또는 사용자 ID를 입력하세요',
     },
   },
   blocklist: {
     card_title: '이메일 차단 목록',
     card_description: '높은 위험 또는 원치 않는 이메일 주소를 차단하여 사용자 기반을 제어합니다.',
+    custom_email_allowlist: {
+      title: '사용자 지정 이메일 주소 허용',
+      description:
+        '신규 가입 및 새로 연결되는 이메일에 특정 이메일 도메인, 이메일 주소 또는 와일드카드 패턴만 허용하는 규칙을 추가하세요. 예: bar@example.com, @example.com, foo*@example.com, *@example.com. gmail.com과 googlemail.com 도메인은 동일하게 처리되며 로컬 부분의 점은 무시되므로 foo.bar@gmail.com은 foobar@googlemail.com과 일치합니다.',
+      placeholder: '이메일 주소, 도메인 또는 와일드카드 패턴 입력',
+      duplicate_error: '이메일 주소, 도메인 또는 와일드카드 이메일 주소 패턴이 이미 추가되었습니다',
+      invalid_format_error:
+        '유효한 이메일 주소(bar@example.com), 도메인(@example.com) 또는 와일드카드 이메일 주소 패턴(foo*@example.com, *@example.com)이어야 합니다',
+      warnings: {
+        identical_entries:
+          '일부 허용 목록 항목이 차단 규칙에도 존재합니다. 일치하는 이메일은 계속 차단될 수 있습니다.',
+        blocked_exact_email:
+          '일부 정확한 허용 목록 이메일이 차단 규칙과 일치합니다. 일치하는 이메일은 계속 차단될 수 있습니다.',
+        blocked_subaddressing:
+          '일부 허용 목록 항목에 더하기 기호(+)가 포함되어 있지만 이메일 하위 주소 지정이 차단되어 있습니다.',
+        effectively_unusable:
+          '이 검사에 따르면 현재 허용 목록은 새 이메일을 통과시키지 못할 수 있습니다.',
+      },
+    },
     disposable_email: {
       title: '일회용 이메일 주소 차단',
       description:
@@ -169,11 +209,11 @@ const security = {
     custom_email_address: {
       title: '사용자 정의 이메일 주소 차단',
       description:
-        '등록하거나 UI를 통해 연결할 수 없는 특정 이메일 도메인 또는 이메일 주소를 추가합니다.',
-      placeholder: '차단된 이메일 주소 또는 도메인 입력 (예: bar@example.com, @example.com)',
-      duplicate_error: '이미 추가된 이메일 주소 또는 도메인입니다',
+        '특정 이메일 도메인, 이메일 주소 또는 와일드카드 패턴이 UI를 통해 등록되거나 연결되지 않도록 하는 규칙을 추가하세요. 예: bar@example.com, @example.com, foo*@example.com, *@example.com. gmail.com과 googlemail.com 도메인은 동일하게 처리되며 로컬 부분의 점은 무시되므로 foo.bar@gmail.com은 foobar@googlemail.com과 일치합니다.',
+      placeholder: '이메일 주소, 도메인 또는 와일드카드 패턴 입력',
+      duplicate_error: '이메일 주소, 도메인 또는 와일드카드 이메일 주소 패턴이 이미 추가되었습니다',
       invalid_format_error:
-        '유효한 이메일 주소(bar@example.com) 또는 도메인(@example.com)이어야 합니다',
+        '유효한 이메일 주소(bar@example.com), 도메인(@example.com) 또는 와일드카드 이메일 주소 패턴(foo*@example.com, *@example.com)이어야 합니다',
     },
   },
 };

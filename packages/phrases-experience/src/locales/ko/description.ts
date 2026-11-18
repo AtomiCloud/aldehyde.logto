@@ -34,6 +34,8 @@ const description = {
   reset_password: '비밀번호를 잊으셨나요',
   reset_password_description:
     '귀하의 계정과 연결된 {{types, list(type: disjunction;)}}를 입력하면 비밀번호 재설정을 위한 인증 코드를 보내드립니다.',
+  reset_password_magic_link_description:
+    '비밀번호 재설정을 계속하려면 계정에 연결된 이메일 주소를 입력하세요.',
   new_password: '새 비밀번호',
   set_password: '비밀번호 설정',
   password_changed: '비밀번호 변경됨',
@@ -93,6 +95,8 @@ const description = {
     '귀하의 기업은 {{email}} 이메일 계정에 대해 Single Sign-On을 활성화했습니다. 다음 SSO 제공업체를 사용하여 로그인을 계속할 수 있습니다.',
   single_sign_on_enabled: '이 계정에는 Single Sign-On이 활성화되어 있습니다.',
   authorize_title: '{{name}} 권한 부여',
+  unregistered_client_notice:
+    '이 앱은 이름과 로고를 포함해 <hostname>{{host}}</hostname>이(가) 직접 선언한 것입니다. 계속하기 전에 호스트 이름을 확인하세요.',
   request_permission: '{{name}} 이(가) 다음에 대한 액세스를 요청하고 있습니다:',
   grant_organization_access: '조직 접근 권한 부여:',
   authorize_personal_data_usage: '개인 데이터 사용 권한 부여:',
@@ -119,6 +123,8 @@ const description = {
   switch_account_title: '현재 {{account}}으로 로그인 중입니다',
   switch_account_description:
     '계속 진행하려면 현재 계정에서 로그아웃되고 새 계정으로 자동 전환됩니다.',
+  continue_to_app_title: '앱으로 돌아가기',
+  continue_to_app_description: '계속하여 앱으로 돌아가세요.',
   about_yourself: '자신에 대해 알려주세요',
   verify_identity: '신원 확인',
   choose_verification_method: '로그인 방법을 선택하세요',
@@ -131,6 +137,7 @@ const description = {
     phone_verification_code: '전화 인증 코드',
     verification_code_description: '{{target}}로 전송',
   },
+  select_wallet: '지갑 선택',
 };
 
 export default Object.freeze(description);

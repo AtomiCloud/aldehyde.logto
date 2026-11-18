@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
-  LogtoInlineHookKey,
+  LogtoActionKey,
   type LogtoOidcConfigType,
   LogtoOidcConfigKey,
   LogtoTenantConfigKey,
   OidcSigningKeyStatus,
-  inlineHookConfigGuard,
+  actionConfigGuard,
   logtoOidcConfigGuard,
   logtoConfigGuards,
   logtoConfigKeys,
@@ -47,8 +48,8 @@ describe('logto config guards', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts inline hook configs', () => {
-    const result = inlineHookConfigGuard[LogtoInlineHookKey.PostFirstFactorVerification].safeParse({
+  it('accepts action configs', () => {
+    const result = actionConfigGuard[LogtoActionKey.PostFirstFactorVerification].safeParse({
       script: 'export default async () => ({ action: "createUser" });',
       environmentVariables: {
         endpoint: 'https://example.com',
@@ -61,8 +62,8 @@ describe('logto config guards', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects invalid inline hook execution error policy', () => {
-    const result = inlineHookConfigGuard[LogtoInlineHookKey.PostSignIn].safeParse({
+  it('rejects invalid action execution error policy', () => {
+    const result = actionConfigGuard[LogtoActionKey.PostSignIn].safeParse({
       script: 'export default async () => ({ action: "updateUser" });',
       onExecutionError: 'ignore',
     });
@@ -70,11 +71,41 @@ describe('logto config guards', () => {
     expect(result.success).toBe(false);
   });
 
-  it('includes inline hook keys in the logto config summary guards', () => {
-    expect(logtoConfigKeys).toContain(LogtoInlineHookKey.PostFirstFactorVerification);
-    expect(logtoConfigKeys).toContain(LogtoInlineHookKey.PostSignIn);
-    expect(logtoConfigGuards[LogtoInlineHookKey.PostSignIn]).toBe(
-      inlineHookConfigGuard[LogtoInlineHookKey.PostSignIn]
+  it('includes action keys in the logto config summary guards', () => {
+    expect(logtoConfigKeys).toContain(LogtoActionKey.PostFirstFactorVerification);
+    expect(logtoConfigKeys).toContain(LogtoActionKey.PostSignIn);
+    expect(logtoConfigGuards[LogtoActionKey.PostSignIn]).toBe(
+      actionConfigGuard[LogtoActionKey.PostSignIn]
     );
+  });
+
+  it('includes the CIMD key in the logto config summary guards', () => {
+    expect(logtoConfigKeys).toContain(LogtoTenantConfigKey.Cimd);
+    expect(logtoConfigGuards[LogtoTenantConfigKey.Cimd]).toBe(
+      logtoTenantConfigGuard[LogtoTenantConfigKey.Cimd]
+    );
+  });
+
+  it('keeps a stored CIMD config value', () => {
+    expect(logtoTenantConfigGuard[LogtoTenantConfigKey.Cimd].parse({ enabled: true })).toEqual({
+      enabled: true,
+    });
+  });
+
+  it('rejects invalid CIMD config values', () => {
+    const result = logtoTenantConfigGuard[LogtoTenantConfigKey.Cimd].safeParse({ enabled: 'yes' });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('parses OIDC configs without the optional session row', () => {
+    const result = z.object(logtoOidcConfigGuard).parse({
+      [LogtoOidcConfigKey.PrivateKeys]: [
+        { id: 'key_1', value: 'private-key-1', createdAt: 1_710_000_000_000 },
+      ],
+      [LogtoOidcConfigKey.CookieKeys]: [],
+    });
+
+    expect(result[LogtoOidcConfigKey.Session]).toEqual({});
   });
 });

@@ -37,6 +37,8 @@ const description = {
   reset_password: 'Mot de passe oublié',
   reset_password_description:
     'Entrez le {{types, list(type: disjunction;)}} associé à votre compte et nous vous enverrons le code de vérification pour réinitialiser votre mot de passe.',
+  reset_password_magic_link_description:
+    'Saisis l’adresse e-mail associée à ton compte pour continuer la réinitialisation de ton mot de passe.',
   new_password: 'Nouveau mot de passe',
   set_password: 'Définir un mot de passe',
   password_changed: 'Mot de passe modifié',
@@ -105,6 +107,8 @@ const description = {
     'Votre entreprise a activé la connexion unique (Single Sign-On) pour le compte email {{email}}. Vous pouvez continuer à vous connecter avec les fournisseurs SSO suivants.',
   single_sign_on_enabled: 'La connexion unique (Single Sign-On) est activée pour ce compte',
   authorize_title: 'Autoriser {{name}}',
+  unregistered_client_notice:
+    "Cette application est auto-déclarée par <hostname>{{host}}</hostname>, y compris son nom et son logo. Veuillez vérifier le nom d'hôte avant de continuer.",
   request_permission: "{{name}} demande l'accès à :",
   grant_organization_access: "Accorder l'accès à l'organisation :",
   authorize_personal_data_usage: "Autoriser l'utilisation de vos données personnelles :",
@@ -132,6 +136,8 @@ const description = {
   switch_account_title: 'Vous êtes actuellement connecté en tant que {{account}}',
   switch_account_description:
     'Pour continuer, vous serez déconnecté du compte actuel, et le passage au nouveau compte se fera automatiquement.',
+  continue_to_app_title: 'Revenir à l’application',
+  continue_to_app_description: 'Continuez pour revenir à l’application.',
   about_yourself: 'Parlez-nous de vous',
   verify_identity: 'Vérifiez votre identité',
   choose_verification_method: 'Choisissez comment vous connecter',
@@ -144,6 +150,7 @@ const description = {
     phone_verification_code: 'Code de vérification par téléphone',
     verification_code_description: 'Envoyer à {{target}}',
   },
+  select_wallet: 'Sélectionner un portefeuille',
 };
 
 export default Object.freeze(description);

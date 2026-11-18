@@ -35,6 +35,8 @@ const description = {
   reset_password: 'Parolanızı mı unuttunuz',
   reset_password_description:
     'Hesabınızla ilişkili {{types, list(type: disjunction;)}} girin, şifrenizi sıfırlamanız için size doğrulama kodunu göndereceğiz.',
+  reset_password_magic_link_description:
+    'Parolanızı sıfırlamaya devam etmek için hesabınızla ilişkili e-posta adresini girin.',
   new_password: 'Yeni Şifre',
   set_password: 'Şifreyi belirle',
   password_changed: 'Şifre değişti',
@@ -99,6 +101,8 @@ const description = {
     'Şirketiniz, {{email}} e-posta hesabı için Tekli Oturum Açmayı (Single Sign-On) etkinleştirdi. Aşağıdaki SSO sağlayıcıları ile oturum açmaya devam edebilirsiniz.',
   single_sign_on_enabled: 'Bu hesapta Tekli Oturum Açma etkinleştirildi.',
   authorize_title: '{{name}} yetkilendir',
+  unregistered_client_notice:
+    'Bu uygulama, adı ve logosu dahil olmak üzere <hostname>{{host}}</hostname> tarafından beyan edilmiştir. Devam etmeden önce ana bilgisayar adını doğrulayın.',
   request_permission: '{{name}} erişim izni istiyor:',
   grant_organization_access: 'Organizasyon erişimi ver:',
   authorize_personal_data_usage: 'Kişisel verilerinizin kullanımını yetkilendirin:',
@@ -124,6 +128,8 @@ const description = {
   switch_account_title: 'Şu anda {{account}} olarak oturum açtınız',
   switch_account_description:
     'Devam etmek için, mevcut hesaptan çıkış yapacak ve otomatik olarak yeni hesaba geçeceksiniz.',
+  continue_to_app_title: 'Uygulamaya dön',
+  continue_to_app_description: 'Uygulamaya dönmek için devam edin.',
   about_yourself: 'Kendinizden bahsedin',
   verify_identity: 'Kimliğinizi doğrulayın',
   choose_verification_method: 'Nasıl giriş yapmak istediğinizi seçin',
@@ -136,6 +142,7 @@ const description = {
     phone_verification_code: 'Telefon doğrulama kodu',
     verification_code_description: '{{target}} adresine gönder',
   },
+  select_wallet: 'Bir cüzdan seçin',
 };
 
 export default Object.freeze(description);

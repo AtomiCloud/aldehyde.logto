@@ -1,5 +1,14 @@
-import { LogResult, token, interaction, LogKeyUnknown, jwtCustomizer, saml } from '@logto/schemas';
-import type { Log } from '@logto/schemas';
+import {
+  LogResult,
+  token,
+  interaction,
+  action,
+  LogKeyUnknown,
+  jwtCustomizer,
+  saml,
+  trustedDevice,
+} from '@logto/schemas';
+import type { Log, LogResponse } from '@logto/schemas';
 import { pickDefault } from '@logto/shared/esm';
 
 import { MockTenant } from '#src/test-utils/tenant.js';
@@ -8,15 +17,23 @@ import { createRequester } from '#src/utils/test-utils.js';
 const { jest } = import.meta;
 
 const mockBody = { key: 'a', payload: { key: 'a', result: LogResult.Success }, createdAt: 123 };
-const mockLog: Log = { tenantId: 'fake_tenant', id: '1', ...mockBody };
+const mockLog: LogResponse = { tenantId: 'fake_tenant', id: '1', ...mockBody };
 const mockLogs = [mockLog, { tenantId: 'fake_tenant', id: '2', ...mockBody }];
+
+// Rows as the queries return them: the trigger-kept lookup columns must not reach the response.
+const toRow = (log: LogResponse): Log => ({
+  ...log,
+  payloadUserId: 'user',
+  payloadApplicationId: 'application',
+  payloadHookId: 'hook',
+});
 
 const logs = {
   countLogs: jest.fn().mockResolvedValue({
     count: mockLogs.length,
   }),
-  findLogs: jest.fn().mockResolvedValue(mockLogs),
-  findLogById: jest.fn().mockResolvedValue(mockLog),
+  findLogs: jest.fn().mockResolvedValue(mockLogs.map((log) => toRow(log))),
+  findLogById: jest.fn().mockResolvedValue(toRow(mockLog)),
 };
 const { countLogs, findLogs, findLogById } = logs;
 const logRoutes = await pickDefault(import('./log.js'));
@@ -46,6 +63,8 @@ describe('logRoutes', () => {
         {
           payload: { userId, applicationId },
           logKey,
+          startTime: undefined,
+          endTime: undefined,
           includeKeyPrefix: [
             token.Type.ExchangeTokenBy,
             token.Type.RevokeToken,
@@ -53,6 +72,8 @@ describe('logRoutes', () => {
             interaction.prefix,
             jwtCustomizer.prefix,
             saml.prefix,
+            action.prefix,
+            trustedDevice.prefix,
             LogKeyUnknown,
           ],
         },
@@ -61,6 +82,8 @@ describe('logRoutes', () => {
       expect(findLogs).toHaveBeenCalledWith(5, 0, {
         payload: { userId, applicationId },
         logKey,
+        startTime: undefined,
+        endTime: undefined,
         includeKeyPrefix: [
           token.Type.ExchangeTokenBy,
           token.Type.RevokeToken,
@@ -68,6 +91,8 @@ describe('logRoutes', () => {
           interaction.prefix,
           jwtCustomizer.prefix,
           saml.prefix,
+          action.prefix,
+          trustedDevice.prefix,
           LogKeyUnknown,
         ],
       });
@@ -137,15 +162,15 @@ describe('logRoutes', () => {
         );
       });
 
-      it('returns 400 when start_time >= end_time', async () => {
+      it('returns 400 when start_time > end_time', async () => {
         const response = await logRequest.get(`/logs?start_time=2000&end_time=1000`);
         expect(response.status).toEqual(400);
         expect(countLogs).not.toHaveBeenCalled();
       });
 
-      it('returns 400 when start_time equals end_time', async () => {
+      it('succeeds when start_time equals end_time (inclusive bounds)', async () => {
         const response = await logRequest.get(`/logs?start_time=1000&end_time=1000`);
-        expect(response.status).toEqual(400);
+        expect(response.status).toEqual(200);
       });
 
       it('returns 400 when start_time is not a finite number', async () => {

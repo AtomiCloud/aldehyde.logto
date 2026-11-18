@@ -37,6 +37,8 @@ const jwt_claims = {
   error_handling_tab: '오류 처리',
   test_tab: '테스트 컨텍스트',
   jwt_claims_description: '기본 클레임은 JWT에 자동으로 추가되며 재정의할 수 없습니다.',
+  reserved_claims_description:
+    '`acr`, `amr`, `auth_time`은 사용자 액세스 토큰에서 예약되어 있습니다. Logto가 항상 이들을 도출하며, 이러한 키를 사용하는 사용자 정의 클레임은 무시됩니다.',
   user_data: {
     title: '사용자 데이터',
     subtitle: '`context.user` 입력 매개변수를 사용하여 중요한 사용자 정보 제공.',
@@ -99,6 +101,11 @@ const jwt_claims = {
     subtitle: '테스트를 위해 모의 토큰 및 사용자 데이터 조정.',
     run_button: '테스트 실행',
     result_title: '테스트 결과',
+  },
+  sandbox_warning: {
+    title: '스크립트는 서버 권한으로 실행됩니다',
+    description:
+      '셀프 호스팅 Logto에서는 이 스크립트가 Logto 자체와 동일한 환경에서 실행됩니다. 서버 환경 변수를 읽고 내부 네트워크의 서비스에 접근할 수 있습니다. 샌드박스되지 않습니다. 서버 접근을 허용해도 되는 사람에게만 이 페이지 접근 권한을 부여하세요.',
   },
   form_error: {
     invalid_json: '잘못된 JSON 형식',

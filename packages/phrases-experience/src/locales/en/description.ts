@@ -37,6 +37,8 @@ const description = {
   reset_password: 'Reset password',
   reset_password_description:
     'Enter the {{types, list(type: disjunction;)}} associated with your account, and we’ll send you the verification code to reset your password.',
+  reset_password_magic_link_description:
+    'Enter the email address associated with your account to continue resetting your password.',
   new_password: 'New password',
   set_password: 'Set password',
   password_changed: 'Password changed',
@@ -102,6 +104,8 @@ const description = {
     'Your enterprise has enabled Single Sign-On for the email account {{email}}. You can continue to sign in with the following SSO providers.',
   single_sign_on_enabled: 'Single Sign-On is enabled for this account',
   authorize_title: 'Authorize {{name}}',
+  unregistered_client_notice:
+    'This app is self-declared by <hostname>{{host}}</hostname>, including its name and logo. Please verify the hostname before you continue.',
   request_permission: '{{name}} is requesting access to:',
   grant_organization_access: 'Grant the organization access:',
   authorize_personal_data_usage: 'Authorize the use of your personal data:',
@@ -127,9 +131,12 @@ const description = {
   switch_account_title: 'You are currently signed in as {{account}}',
   switch_account_description:
     'To continue, you will be signed out of the current account, and switch to the new account automatically.',
+  continue_to_app_title: 'Return to the app',
+  continue_to_app_description: 'Continue to return to the app.',
   about_yourself: 'Tell us about yourself',
   verify_identity: 'Verify your identity',
   choose_verification_method: 'Choose how you want to sign in',
+  select_wallet: 'Select a wallet',
   verification_method: {
     passkey: 'Passkey',
     passkey_description: 'Verify via your device or USB hardware',

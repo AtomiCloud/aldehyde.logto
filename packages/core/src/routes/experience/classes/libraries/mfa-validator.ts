@@ -10,6 +10,7 @@ import { type Optional } from '@silverhand/essentials';
 
 import { isNoSkipMfaPolicy } from '#src/libraries/sign-in-experience/mfa-policy.js';
 
+import { type InteractionProfile } from '../../types.js';
 import { getAllUserEnabledMfaVerifications } from '../helpers.js';
 import { type BackupCodeVerification } from '../verifications/backup-code-verification.js';
 import {
@@ -52,7 +53,7 @@ type MfaVerificationRecord =
   | MfaEmailCodeVerification
   | MfaPhoneCodeVerification;
 
-const isMfaVerificationRecord = (
+export const isMfaVerificationRecord = (
   verification: VerificationRecord
 ): verification is MfaVerificationRecord => {
   return mfaVerificationTypes.includes(verification.type);
@@ -62,7 +63,10 @@ export class MfaValidator {
   constructor(
     private readonly mfaSettings: Mfa,
     private readonly user: User,
-    private readonly adaptiveMfaResult?: Optional<AdaptiveMfaResult>
+    private readonly verificationContext: {
+      adaptiveMfaResult?: Optional<AdaptiveMfaResult>;
+      isMfaRequiredByUser?: boolean;
+    } = {}
   ) {}
 
   /**
@@ -105,17 +109,18 @@ export class MfaValidator {
    *    - triggered + user has factors → required
    *    - otherwise → not required
    * 2. If adaptive MFA is disabled (result undefined), fall back to SIE policy:
-   *    - skipMfaOnSignIn + non-Mandatory policy → not required
+   *    - disabled/skipped MFA + non-Mandatory policy + no user/org requirement → not required
    *    - user has factors → required
    *    - otherwise → not required
    */
   get isMfaRequired(): boolean {
     const hasUserFactors = this.userEnabledMfaVerifications.length > 0;
+    const { adaptiveMfaResult, isMfaRequiredByUser } = this.verificationContext;
 
-    if (this.adaptiveMfaResult !== undefined) {
+    if (adaptiveMfaResult !== undefined) {
       // Verification guard only applies when the user already has MFA factors
       // enabled in the current sign-in experience.
-      return this.adaptiveMfaResult.requiresMfa && hasUserFactors;
+      return adaptiveMfaResult.requiresMfa && hasUserFactors;
     }
 
     const mfaData = userMfaDataGuard.safeParse(this.user.logtoConfig[userMfaDataKey]);
@@ -124,10 +129,11 @@ export class MfaValidator {
 
     // If `isMfaEnabled` is undefined, it means the user exists before the `enabled` flag is introduced,
     // we should still enforce MFA for them if they have MFA factors. Only skip the check if mfa is explicitly
-    // disabled, or skipped on sign-in.
+    // disabled, or skipped on sign-in, and neither the policy nor a user/org requirement enforces it.
     if (
       (isMfaEnabled === false || skipMfaOnSignIn) &&
-      !isNoSkipMfaPolicy(this.mfaSettings.policy)
+      !isNoSkipMfaPolicy(this.mfaSettings.policy) &&
+      !isMfaRequiredByUser
     ) {
       return false;
     }
@@ -136,18 +142,40 @@ export class MfaValidator {
   }
 
   isMfaVerified(verificationRecords: VerificationRecord[]) {
-    const verifiedMfaVerificationRecords = verificationRecords.filter(
+    return this.getVerifiedMfaVerificationRecords(verificationRecords).length > 0;
+  }
+
+  hasEligibleTrustedDeviceVerification(
+    verificationRecords: VerificationRecord[],
+    currentProfile?: InteractionProfile
+  ) {
+    return this.getVerifiedMfaVerificationRecords(verificationRecords, currentProfile).some(
+      ({ type }) => type !== VerificationType.BackupCode
+    );
+  }
+
+  private getVerifiedMfaVerificationRecords(
+    verificationRecords: VerificationRecord[],
+    currentProfile?: InteractionProfile
+  ) {
+    const userEnabledMfaVerifications = getAllUserEnabledMfaVerifications(
+      this.mfaSettings,
+      this.user,
+      currentProfile
+    );
+
+    return verificationRecords.filter(
       (verification) =>
         isMfaVerificationRecord(verification) &&
         verification.isVerified &&
         // New bind MFA verification can not be used for verification
         !verification.isNewBindMfaVerification &&
+        // An MFA challenge is created for one account and answers for that account only, so a
+        // record counts only for the user it names. Every type names its owner at creation, so a
+        // record without one was not created for any user and counts for nobody.
+        verification.userId === this.user.id &&
         // Check if the verification type is enabled in the user's MFA settings
-        this.userEnabledMfaVerifications.includes(
-          mfaVerificationTypeToMfaFactorMap[verification.type]
-        )
+        userEnabledMfaVerifications.includes(mfaVerificationTypeToMfaFactorMap[verification.type])
     );
-
-    return verifiedMfaVerificationRecords.length > 0;
   }
 }

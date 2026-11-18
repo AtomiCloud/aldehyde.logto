@@ -1,7 +1,11 @@
-import { InteractionEvent, SignInIdentifier, SignInMode } from '@logto/schemas';
+import { InteractionEvent, OneTimeTokenStatus, SignInIdentifier, SignInMode } from '@logto/schemas';
 
 import { deleteUser, updateSignInExperience } from '#src/api/index.js';
-import { createOneTimeToken } from '#src/api/one-time-token.js';
+import {
+  createOneTimeToken,
+  deleteOneTimeTokenById,
+  getOneTimeTokenById,
+} from '#src/api/one-time-token.js';
 import { initExperienceClient, logoutClient, processSession } from '#src/helpers/client.js';
 import { setEmailConnector } from '#src/helpers/connector.js';
 import { expectRejects } from '#src/helpers/index.js';
@@ -69,6 +73,44 @@ describe('Register interaction with one-time token', () => {
     const userId = await processSession(client, redirectTo);
     await logoutClient(client);
     await deleteUser(userId);
+    await deleteOneTimeTokenById(oneTimeToken.id);
+  });
+
+  it('should not consume a forgot-password scoped one-time token for registration', async () => {
+    const email = 'foo@logto.io';
+    const client = await initExperienceClient({
+      interactionEvent: InteractionEvent.SignIn,
+    });
+    await client.updateInteractionEvent({ interactionEvent: InteractionEvent.Register });
+
+    const oneTimeToken = await createOneTimeToken({
+      email,
+      context: {
+        interactionEvent: InteractionEvent.ForgotPassword,
+      },
+    });
+
+    try {
+      await expectRejects(
+        client.verifyOneTimeToken({
+          token: oneTimeToken.token,
+          identifier: {
+            type: SignInIdentifier.Email,
+            value: email,
+          },
+        }),
+        {
+          code: 'one_time_token.interaction_event_mismatch',
+          status: 400,
+        }
+      );
+
+      await expect(getOneTimeTokenById(oneTimeToken.id)).resolves.toMatchObject({
+        status: OneTimeTokenStatus.Active,
+      });
+    } finally {
+      await deleteOneTimeTokenById(oneTimeToken.id);
+    }
   });
 
   it('should sign-in directly when email already exists (no need to switch after verify)', async () => {
@@ -102,6 +144,7 @@ describe('Register interaction with one-time token', () => {
     await logoutClient(client);
 
     await deleteUser(user.id);
+    await deleteOneTimeTokenById(oneTimeToken.id);
   });
 
   it('should prompt user to fulfill password if required upon registration', async () => {
@@ -153,6 +196,7 @@ describe('Register interaction with one-time token', () => {
     const userId = await processSession(client, redirectTo);
     await logoutClient(client);
     await deleteUser(userId);
+    await deleteOneTimeTokenById(oneTimeToken.id);
   });
 
   it('should allow user registration through one-time token even if the registration is turned off', async () => {
@@ -194,6 +238,7 @@ describe('Register interaction with one-time token', () => {
     const userId = await processSession(client, redirectTo);
     await logoutClient(client);
     await deleteUser(userId);
+    await deleteOneTimeTokenById(oneTimeToken.id);
   });
 
   it('should allow user one-time token registration even if the sign-in identifier does NOT support email', async () => {
@@ -246,5 +291,6 @@ describe('Register interaction with one-time token', () => {
     const userId = await processSession(client, redirectTo);
     await logoutClient(client);
     await deleteUser(userId);
+    await deleteOneTimeTokenById(oneTimeToken.id);
   });
 });

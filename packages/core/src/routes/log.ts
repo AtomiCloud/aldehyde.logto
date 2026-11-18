@@ -1,10 +1,12 @@
 import {
-  Logs,
+  logResponseGuard,
+  action,
   interaction,
   token,
   LogKeyUnknown,
   jwtCustomizer,
   saml,
+  trustedDevice,
   type AuditLogPrefix,
 } from '@logto/schemas';
 import { yes } from '@silverhand/essentials';
@@ -33,7 +35,7 @@ export default function logRoutes<T extends ManagementApiRouter>(
         start_time: string().optional(),
         end_time: string().optional(),
       }),
-      response: Logs.guard.array(),
+      response: logResponseGuard.array(),
       status: [200, 400],
     }),
     async (ctx, next) => {
@@ -53,6 +55,8 @@ export default function logRoutes<T extends ManagementApiRouter>(
         interaction.prefix,
         jwtCustomizer.prefix,
         saml.prefix,
+        action.prefix,
+        trustedDevice.prefix,
         LogKeyUnknown,
       ];
 
@@ -88,7 +92,11 @@ export default function logRoutes<T extends ManagementApiRouter>(
 
   router.get(
     '/logs/:id',
-    koaGuard({ params: object({ id: string().min(1) }), response: Logs.guard, status: [200, 404] }),
+    koaGuard({
+      params: object({ id: string().min(1) }),
+      response: logResponseGuard,
+      status: [200, 404],
+    }),
     async (ctx, next) => {
       const {
         params: { id },

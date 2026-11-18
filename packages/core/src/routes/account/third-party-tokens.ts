@@ -1,3 +1,4 @@
+import { UserScope } from '@logto/core-kit';
 import {
   type EnterpriseSsoTokenSetSecret,
   getThirdPartyAccessTokenResponseGuard,
@@ -15,6 +16,7 @@ import { buildVerificationRecordByIdAndType } from '#src/libraries/verification.
 import koaGuard from '#src/middleware/koa-guard.js';
 import type Libraries from '#src/tenants/Libraries.js';
 import type Queries from '#src/tenants/Queries.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
 import { decryptTokens } from '#src/utils/secret-encryption.js';
 
@@ -105,12 +107,20 @@ export default function thirdPartyTokensRoutes<T extends UserRouter>(
       params: z.object({
         target: z.string().min(1),
       }),
-      status: [200, 404, 401, 422],
+      status: [200, 404, 403, 401, 422, 502],
       response: getThirdPartyAccessTokenResponseGuard,
     }),
     async (ctx, next) => {
-      const { id: userId } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { target } = ctx.guard.params;
+
+      // A stored provider token is a bearer credential for the upstream provider, not a profile
+      // attribute, so it stays within the first-party boundary the other credential-bearing
+      // account routes enforce.
+      await assertFirstPartyClient(queries, clientId);
+      // Stored provider tokens are identity data; require the same `identities` scope as the
+      // other social/SSO identity endpoints.
+      assertThat(scopes.has(UserScope.Identities), 'auth.forbidden', 403);
 
       const tokenSetSecret = await secretsQueries.findSocialTokenSetSecretByUserIdAndTarget(
         userId,
@@ -136,12 +146,17 @@ export default function thirdPartyTokensRoutes<T extends UserRouter>(
       params: z.object({
         connectorId: z.string().min(1),
       }),
-      status: [200, 404, 401],
+      status: [200, 404, 403, 401],
       response: getThirdPartyAccessTokenResponseGuard,
     }),
     async (ctx, next) => {
-      const { id: userId } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { connectorId } = ctx.guard.params;
+
+      await assertFirstPartyClient(queries, clientId);
+      // Stored provider tokens are identity data; require the same `identities` scope as the
+      // other social/SSO identity endpoints.
+      assertThat(scopes.has(UserScope.Identities), 'auth.forbidden', 403);
 
       const tokenSetSecret =
         await secretsQueries.findEnterpriseSsoTokenSetSecretByUserIdAndConnectorId(
@@ -171,13 +186,18 @@ export default function thirdPartyTokensRoutes<T extends UserRouter>(
       body: z.object({
         verificationRecordId: z.string().min(1),
       }),
-      status: [200, 401, 422],
+      status: [200, 403, 401, 422],
       response: getThirdPartyAccessTokenResponseGuard,
     }),
     async (ctx, next) => {
-      const { id: userId } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { target } = ctx.guard.params;
       const { verificationRecordId } = ctx.guard.body;
+
+      await assertFirstPartyClient(queries, clientId);
+      // Stored provider tokens are identity data; require the same `identities` scope as the
+      // other social/SSO identity endpoints.
+      assertThat(scopes.has(UserScope.Identities), 'auth.forbidden', 403);
 
       const socialVerificationRecord = await buildVerificationRecordByIdAndType({
         type: VerificationType.Social,

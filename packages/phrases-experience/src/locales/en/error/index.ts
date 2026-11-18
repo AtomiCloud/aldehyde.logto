@@ -34,14 +34,28 @@ const error = {
   invalid_link: 'Invalid link',
   invalid_link_description: 'Your one-time token may have expired or is no longer valid.',
   captcha_verification_failed: 'Failed to perform captcha verification.',
+  send_verification_code_failed: 'Failed to send the verification code. Please try again later.',
+  send_verification_code_failed_use_password:
+    'Failed to send the verification code. Please sign in with your password instead.',
   terms_acceptance_required: 'Terms acceptance required',
   terms_acceptance_required_description: 'You must agree to the terms to continue.',
   something_went_wrong: 'Something went wrong',
+  account_suspended: 'Account suspended',
+  account_suspended_description:
+    'This account has been suspended. Please contact the administrator for assistance.',
   access_denied: 'Access denied',
   application_access_denied:
     'You do not have permission to access this application.\nPlease contact your administrator for assistance.',
   feature_not_enabled:
     'You do not have permission to access this feature. Please contact your administrator for assistance.',
+  wallet_not_found:
+    'No Ethereum wallet detected. Install a browser wallet extension and try again.',
+  wallet_not_supported:
+    'Wallet sign-in is only supported in a browser with an installed wallet extension.',
+  wallet_request_rejected: 'The wallet request was rejected. Please try again.',
+  wallet_unsupported_chain:
+    'Your wallet is connected to an unsupported network. Switch networks and try again.',
+  wallet_signature_invalid: 'The wallet signature is invalid or has expired. Please try again.',
 };
 
 export default Object.freeze(error);

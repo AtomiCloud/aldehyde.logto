@@ -31,7 +31,13 @@ export type ExperienceSocialConnector = Omit<
   'description' | 'configTemplate' | 'formItems' | 'readme' | 'customData'
 >;
 
-export type FullSignInExperience = Omit<SignInExperience, 'forgotPasswordMethods'> & {
+export type FullSignInExperience = Omit<
+  SignInExperience,
+  | 'emailBlocklistPolicy'
+  | 'forgotPasswordMethods'
+  | 'ssoBrandingBeforeEmailMatch'
+  | 'crossOriginOpenerPolicy'
+> & {
   socialConnectors: ExperienceSocialConnector[];
   ssoConnectors: SsoConnectorMetadata[];
   forgotPassword: ForgotPassword;
@@ -48,6 +54,8 @@ export type FullSignInExperience = Omit<SignInExperience, 'forgotPasswordMethods
   captchaConfig?: {
     type: CaptchaType;
     siteKey: string;
+    /** The Cap Standalone instance URL, only available for {@link CaptchaType.Cap}. */
+    endpoint?: string;
     domain?: string;
     mode?: RecaptchaEnterpriseMode;
   };
@@ -63,7 +71,12 @@ export type FullSignInExperience = Omit<SignInExperience, 'forgotPasswordMethods
 };
 
 export const fullSignInExperienceGuard = SignInExperiences.guard
-  .omit({ forgotPasswordMethods: true })
+  .omit({
+    emailBlocklistPolicy: true,
+    forgotPasswordMethods: true,
+    ssoBrandingBeforeEmailMatch: true,
+    crossOriginOpenerPolicy: true,
+  })
   .extend({
     socialConnectors: connectorMetadataGuard
       .omit({
@@ -84,6 +97,7 @@ export const fullSignInExperienceGuard = SignInExperiences.guard
       .object({
         type: z.nativeEnum(CaptchaType),
         siteKey: z.string(),
+        endpoint: z.string().optional(),
         domain: z.string().optional(),
         mode: z.nativeEnum(RecaptchaEnterpriseMode).optional(),
       })

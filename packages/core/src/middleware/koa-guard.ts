@@ -2,9 +2,17 @@ import { appInsights } from '@logto/app-insights/node';
 import type { Optional } from '@silverhand/essentials';
 import { has } from '@silverhand/essentials';
 import type { MiddlewareType } from 'koa';
-import { koaBody } from 'koa-body';
+import { koaBody, type ScalarOrArrayFiles } from 'koa-body';
 import type { IMiddleware, IRouterParamContext } from 'koa-router';
-import type { ZodType, ZodTypeDef } from 'zod';
+import {
+  ZodError,
+  getParsedType,
+  isValid,
+  type ParseContext,
+  type ZodIssue,
+  type ZodType,
+  type ZodTypeDef,
+} from 'zod';
 
 import { EnvSet } from '#src/env-set/index.js';
 import RequestError from '#src/errors/RequestError/index.js';
@@ -49,6 +57,8 @@ export type GuardConfig<QueryT, BodyT, ParametersT, ResponseT, FilesT> = {
    * @example z.object({ key1: z.string() })
    */
   response?: ZodType<ResponseT, ZodTypeDef, unknown>;
+  /** Override the response schema used for OpenAPI without changing runtime validation. */
+  responseForOpenApi?: ZodType<unknown, ZodTypeDef, unknown>;
   /**
    * Guard response status code. It produces a `ServerError` (500) if the response does not satisfy
    * any of the given value(s).
@@ -93,6 +103,48 @@ export const isGuardMiddleware = <Type extends IMiddleware>(
 ): function_ is WithGuardConfig<Type> =>
   function_.name === 'guardMiddleware' && has(function_, 'config');
 
+const maxGuardIssues = 100;
+
+/**
+ * Same as `guard.parse(data)`, except that it throws a `ZodError` with the first
+ * {@link maxGuardIssues} issues as soon as parsing reports one more, instead of collecting one
+ * issue per failing element. zod 3 has no option to stop a parse after N issues, so this repeats
+ * the steps of `safeParse` with a root issue list that throws once it overflows. Issues inside a
+ * `z.union` branch or `.catch()` go to their own lists and are not capped.
+ */
+export const parseWithIssueCap = <Output, Definition extends ZodTypeDef, Input>(
+  guard: ZodType<Output, Definition, Input>,
+  data: unknown
+): Output => {
+  const issues: ZodIssue[] = [];
+  // eslint-disable-next-line @silverhand/fp/no-mutating-methods -- intercept the push zod uses to add issues to this list
+  Object.defineProperty(issues, 'push', {
+    value: (...items: ZodIssue[]) => {
+      if (issues.length + items.length > maxGuardIssues) {
+        throw new ZodError([...issues, ...items].slice(0, maxGuardIssues));
+      }
+
+      return Array.prototype.push.call(issues, ...items);
+    },
+  });
+
+  const context: ParseContext = {
+    common: { issues, async: false },
+    path: [],
+    schemaErrorMap: guard._def.errorMap,
+    parent: null,
+    data,
+    parsedType: getParsedType(data),
+  };
+  const result = guard._parseSync({ data, path: context.path, parent: context });
+
+  if (isValid(result)) {
+    return result.value;
+  }
+
+  throw new ZodError([...issues]);
+};
+
 /**
  * Previous `tryParse` function's output type was `Output | undefined`.
  * It can not properly infer the output type to be `Output` even if the guard is provided,
@@ -104,7 +156,7 @@ export const parse = <Output, Definition extends ZodTypeDef, Input>(
   data: unknown
 ) => {
   try {
-    return guard.parse(data);
+    return parseWithIssueCap(guard, data);
   } catch (error: unknown) {
     throw new RequestError({ code: 'guard.invalid_input', type }, error);
   }
@@ -121,6 +173,17 @@ const tryParse = <Output, Definition extends ZodTypeDef, Input>(
 
   return parse(type, guard, data);
 };
+
+/**
+ * `koa-body@8` unwraps single-element file arrays into scalars, while earlier versions always
+ * produced an array per field for multipart uploads. Restore the array shape so that the file
+ * guards (which expect arrays) keep working as before.
+ */
+const normalizeFiles = (files: ScalarOrArrayFiles | undefined) =>
+  files &&
+  Object.fromEntries(
+    Object.entries(files).map(([key, value]) => [key, Array.isArray(value) ? value : [value]])
+  );
 
 /**
  * Guard middleware factory for request and response.
@@ -140,6 +203,7 @@ export default function koaGuard<
   body,
   params,
   response,
+  responseForOpenApi,
   status,
   files,
 }: GuardConfig<
@@ -163,7 +227,7 @@ export default function koaGuard<
       query: tryParse('query', query, ctx.request.query),
       body: tryParse('body', body, ctx.request.body ?? {}), // Fallback to empty object since it's the original behavior of koa-body@5
       params: tryParse('params', params, ctx.params),
-      files: tryParse('files', files, ctx.request.files),
+      files: tryParse('files', files, normalizeFiles(ctx.request.files)),
     } as GuardedRequest<GuardQueryT, GuardBodyT, GuardParametersT, GuardFilesT>; // Have to do this since it's too complicated for TS
 
     return next();
@@ -244,7 +308,7 @@ export default function koaGuard<
 
   // Intended
   // eslint-disable-next-line @silverhand/fp/no-mutation
-  guardMiddleware.config = { query, body, params, response, status };
+  guardMiddleware.config = { query, body, params, response, responseForOpenApi, status };
 
   return guardMiddleware;
 }

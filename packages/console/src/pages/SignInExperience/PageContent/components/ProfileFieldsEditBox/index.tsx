@@ -12,6 +12,7 @@ import useSWR from 'swr';
 
 import CirclePlus from '@/assets/icons/circle-plus.svg?react';
 import Plus from '@/assets/icons/plus.svg?react';
+import { useReadOnlyField } from '@/contexts/ReadOnlyFieldScope';
 import ActionMenu from '@/ds-components/ActionMenu';
 import type { Props as ButtonProps } from '@/ds-components/Button';
 import { DragDropProvider, DraggableItem } from '@/ds-components/DragDrop';
@@ -53,6 +54,7 @@ function ProfileFieldsEditBox<
   onFieldsChange,
   getFieldDisabledReason,
 }: Props<TFieldValues, TName>) {
+  const isReadOnlyField = useReadOnlyField();
   const { control } = useFormContext<TFieldValues>();
   const getI18nLabel = useI18nFieldLabel();
 
@@ -86,6 +88,8 @@ function ProfileFieldsEditBox<
     return map;
   }, [catalog, getI18nLabel]);
 
+  const catalogNameSet = useMemo(() => new Set((catalog ?? []).map(({ name }) => name)), [catalog]);
+
   const hasSelectedFields = fields.length > 0;
 
   const addProfileFieldsButtonProps: ButtonProps = {
@@ -108,9 +112,15 @@ function ProfileFieldsEditBox<
         {fields.map(({ id }, index) => {
           const fieldValue = selectedValue?.[index];
           const currentFieldName = fieldValue?.name;
-          const disabledReason = currentFieldName
-            ? getFieldDisabledReason?.(currentFieldName)
-            : undefined;
+          // Missing catalog fields must stay removable so admins can clear stale references even
+          // when the related account-center permission control is Off.
+          const isMissingFromCatalog = Boolean(
+            currentFieldName && catalog && !catalogNameSet.has(currentFieldName)
+          );
+          const disabledReason =
+            currentFieldName && !isMissingFromCatalog
+              ? getFieldDisabledReason?.(currentFieldName)
+              : undefined;
           const isDisabled = Boolean(disabledReason);
           return (
             <DraggableItem
@@ -153,7 +163,7 @@ function ProfileFieldsEditBox<
           );
         })}
       </DragDropProvider>
-      {availableFields.length > 0 && (
+      {!isReadOnlyField && availableFields.length > 0 && (
         <ActionMenu
           buttonProps={hasSelectedFields ? addAnotherButtonProps : addProfileFieldsButtonProps}
           dropdownHorizontalAlign="start"

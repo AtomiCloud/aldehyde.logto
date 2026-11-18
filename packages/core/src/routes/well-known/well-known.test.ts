@@ -72,7 +72,13 @@ describe('GET /.well-known/sign-in-exp', () => {
     expect(findDefaultSignInExperience).toHaveBeenCalledTimes(1);
     expect(getLogtoConnectors).toHaveBeenCalledTimes(1);
     expect(response.status).toEqual(200);
-    const { forgotPasswordMethods, ...expectedSignInExperience } = mockSignInExperience;
+    const {
+      emailBlocklistPolicy: _emailBlocklistPolicy,
+      forgotPasswordMethods: _forgotPasswordMethods,
+      ssoBrandingBeforeEmailMatch: _ssoBrandingBeforeEmailMatch,
+      crossOriginOpenerPolicy: _crossOriginOpenerPolicy,
+      ...expectedSignInExperience
+    } = mockSignInExperience;
     expect(response.body).toMatchObject({
       ...expectedSignInExperience,
       forgotPassword: {
@@ -102,5 +108,7 @@ describe('GET /.well-known/sign-in-exp', () => {
       ),
       ssoConnectors: [],
     });
+    expect(response.body).not.toHaveProperty('emailBlocklistPolicy');
+    expect(response.body).not.toHaveProperty('forgotPasswordMethods');
   });
 });

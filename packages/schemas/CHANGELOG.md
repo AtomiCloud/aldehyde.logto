@@ -1,5 +1,179 @@
 # Change Log
 
+## 1.46.0
+
+### Minor Changes
+
+- c738bda: add a Cross-Origin-Opener-Policy setting for Bring your UI sign-in pages
+
+  Tenants with Bring your UI can choose `same-origin-allow-popups` or `same-origin` under Sign-in experience > Branding > Bring your UI, or set `crossOriginOpenerPolicy` with the sign-in experience Management API. The header is sent on the hosted sign-in pages while custom UI assets are served. The default, `unsafe-none`, sends no header, so apps that open the sign-in page in a popup keep working.
+
+- 22967f6: add the `confirm_redirect_policy` sign-in parameter to show a "Continue" page before returning to the app
+
+  On iOS, `ASWebAuthenticationSession` closes as soon as it sees the app callback URL, so the system "Save Password" prompt is dismissed right after the user signs in with a password. Pass `confirm_redirect_policy=password` in the authorization request to show a "Return to the app" page after the user entered a password in the sign-in experience (password sign-in, password registration, setting a password, or a step-up password verification). The page returns to the app only when the user selects "Continue".
+
+  Omit the parameter to keep redirecting back to the app right away. Third-party applications ignore it, because they usually show a consent page that already holds the session open.
+
+- 4c2822c: support GeeTest as a CAPTCHA provider
+
+  [GeeTest](https://www.geetest.com) CAPTCHA v4 adds an adaptive CAPTCHA service with localized challenges, which suits sign-in experiences targeting mainland China where Google reCAPTCHA is often unreachable.
+
+  To use it, create a CAPTCHA v4 event in the GeeTest dashboard, then go to Console > Security > CAPTCHA and add GeeTest with its CAPTCHA ID and CAPTCHA key. The same configuration is available through the `PUT /api/captcha-provider` Management API with `type: "Geetest"`.
+
+  While GeeTest is the CAPTCHA provider, the sign-in page's Content Security Policy allows GeeTest's SDK, API, and static hosts, which the widget loads the challenge from.
+
+- f8ea006: add `hasPassword` to the members of an organization (`GET /api/organizations/:id/users`)
+
+  Each organization member now includes whether they have a password set, matching the user list and user detail responses.
+
+- fa062b6: add static attributes to SAML application assertions
+
+  SAML applications can define fixed attribute name-value pairs with the `staticAttributes` field of the `POST /api/saml-applications` and `PATCH /api/saml-applications/{id}` Management APIs. They are added to every assertion alongside the mapped user attributes, for service providers that require constant values such as an account or site ID.
+
+  Attribute names may contain letters, digits, and `_.:/#@-`. They must not conflict with each other or with the user attribute names in the assertion, including names that differ only in case or separators, such as `site_id` and `siteId`.
+
+- c4af1c8: add a `deliveryId` to every webhook payload
+
+  Every webhook payload now carries a `deliveryId`: unique per hook and event, kept across the retries of the same request, so a receiver can process each delivery exactly once without hashing the body. The same value is the id of the audit log entry that records the delivery, so a `deliveryId` reported by a receiver can be opened from the webhook's recent requests in the Console or fetched with `GET /api/logs/:id`. The payload of the "test webhook" action carries one too.
+
+- d65a8dc: support OIDC step-up authentication for Account Center and developer applications
+
+  Clients can request `acr_values` and `max_age` and receive `acr`, `amr`, and `auth_time` in ID tokens, access tokens, and introspection responses. The built-in Account Center now authorizes sensitive Account API operations with a fresh first-party `urn:logto:acr:1fa` access token instead of a separate verification record, and the legacy permission-verification runtime is removed.
+
+- 4dc1d1b: allow admins to require individual users to set up MFA, preventing those users from skipping the setup flow
+
+  Set `mfa.required` to `true` through the Management API, or turn on "Require MFA setup" on the user details page in Console. The user must bind MFA on their next sign-in and cannot skip it, regardless of the organization-level MFA policy.
+
+### Patch Changes
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- 09d778a: reject unknown `customClientMetadata` keys on the application APIs
+
+  `POST /api/applications` and `PATCH /api/applications/:id` used to accept any key under `customClientMetadata` and silently drop the ones they did not know, so a typo such as `refreshTokenTtlInDay` was answered 200 while the setting was never applied. An unknown key is now rejected with a 400 `guard.invalid_input` error whose `data` lists the key. Existing applications are not affected.
+
+- Updated dependencies [249bfda]
+- Updated dependencies [a7a0af9]
+- Updated dependencies [c738bda]
+- Updated dependencies [22967f6]
+- Updated dependencies [800eb13]
+- Updated dependencies [4c2822c]
+- Updated dependencies [d89e507]
+- Updated dependencies [9193c59]
+- Updated dependencies [bdd4d5a]
+- Updated dependencies [fa062b6]
+- Updated dependencies [cec1c1a]
+- Updated dependencies [9d7d323]
+- Updated dependencies [664e6ac]
+- Updated dependencies [d65a8dc]
+- Updated dependencies [05678f9]
+- Updated dependencies [4dc1d1b]
+  - @logto/phrases@1.33.0
+  - @logto/phrases-experience@1.16.0
+  - @logto/connector-kit@5.2.0
+  - @logto/core-kit@2.14.0
+
+## 1.45.0
+
+## 1.44.0
+
+### Minor Changes
+
+- 655317e: support Cap as a self-hosted CAPTCHA provider
+
+  [Cap](https://capjs.js.org) is an open-source, self-hosted proof-of-work CAPTCHA. It needs no third-party service, so bot protection keeps working in regions where Cloudflare Turnstile and Google reCAPTCHA are unreachable or unreliable.
+
+  To use it, deploy a publicly reachable [Cap Standalone](https://capjs.js.org/guide/standalone/) instance, create a site key, then go to Console > Security > CAPTCHA and add Cap with the instance endpoint, site key, and secret key. The same configuration is available through the `PUT /api/captcha-provider` Management API with `type: "Cap"`.
+
+  While Cap is the CAPTCHA provider, the sign-in page's Content Security Policy allows the Cap instance and dynamic JavaScript evaluation, which Cap's bot-detection (instrumentation) challenge requires.
+
+- 9af3b69: allow user IDs up to 128 characters
+
+  `users.id` and every column referencing it were limited to 12 or 21 characters. They now accept up to 128 characters, so users migrated from another identity provider can keep their original IDs.
+
+- 022317f: add a client compatibility setting so dynamic app clients such as ChatGPT and Codex can receive refresh tokens
+
+  These clients request `offline_access` without `prompt=consent`, so they don't receive a refresh token and users have to sign in again whenever the access token expires. Turn on "Add consent prompt for offline access" under Client compatibility in the dynamic app settings, and Logto adds the consent prompt to these requests. The setting is experimental and off by default, and audit logs show the added `consent` in `prompt`.
+
+- 5bd627f: add a configurable score threshold for reCAPTCHA Enterprise so admins can control how strict CAPTCHA verification is
+- 3f9fd15: add authentication policies for SAML applications
+
+  SAML applications force fresh authentication by default, as before. To let a SAML application reuse an existing Logto session, turn off "Always force authentication" in the application settings, or set `authnRequestConfig.forceAuthn` to `false` using the SAML application Management API. The service provider can still require fresh authentication for a single sign-in with `ForceAuthn="true"` (SAML 2.0 core, section 3.4.1).
+
+  SAML assertions report the actual authentication time.
+
+  To require signed authentication requests, set `authnRequestConfig.requireSignedAuthnRequests` to `true` and provide the service provider’s PEM-encoded RSA X.509 certificate in `authnRequestConfig.signingCertificate`. Both HTTP-POST and HTTP-Redirect signatures are verified. Unsigned requests remain accepted by default.
+
+- c5bd438: add MFA trusted devices with configurable policies and device management
+
+  Configure tenant-wide trusted-device policies and organization-level restrictions. After completing MFA, users can choose whether to trust their device on a dedicated page at the end of sign-in or sign-up, then skip repeated MFA on that browser. Manage trusted devices through Console, Account Center, the Management API, and the Account API, and subscribe to device lifecycle webhooks.
+
+- 0429b3a: support the `theme` authentication parameter to control the sign-in experience theme
+
+  Pass `theme=light` or `theme=dark` as an extra authentication parameter to render the sign-in experience in that theme instead of following the end-user's OS setting, so applications with their own light / dark toggle can keep Logto in sync. The override lasts for the whole authentication flow, including page reloads, social / SSO callbacks, and the consent page. It is ignored when dark mode is disabled in the sign-in experience settings, and unsupported values are ignored.
+
+### Patch Changes
+
+- Updated dependencies [655317e]
+- Updated dependencies [0f1af96]
+- Updated dependencies [022317f]
+- Updated dependencies [5bd627f]
+- Updated dependencies [3f9fd15]
+  - @logto/phrases@1.32.0
+
+## 1.43.0
+
+### Minor Changes
+
+- b64d46d495: unify social callback URI between Sign-in Experience and Account Center
+- 8b2aaab9b0: add dynamic app support (OAuth Client ID Metadata Documents)
+
+  The dynamic app lets compatible public clients, such as MCP clients, connect to your tenant without registering an application. Following the OAuth Client ID Metadata Documents (CIMD) draft, such a client presents a public HTTPS URL as its `client_id`, and Logto fetches the client metadata from that URL.
+
+  Enable it from the dynamic app card in the third-party app section on the create application page in Console. The switch is tenant-level and off by default, and requires the OIDC provider SSRF protection to be active. Control what dynamic app clients can request with the permission settings on the dynamic app page.
+
+### Patch Changes
+
+- Updated dependencies [c377946617]
+- Updated dependencies [ebfefb513d]
+- Updated dependencies [ab106cdb82]
+- Updated dependencies [7464c6a97a]
+- Updated dependencies [28c3c9283e]
+- Updated dependencies [6dd496bd2e]
+- Updated dependencies [8b2aaab9b0]
+- Updated dependencies [16f4b2e732]
+  - @logto/phrases-experience@1.15.0
+  - @logto/core-kit@2.13.0
+  - @logto/language-kit@1.4.0
+  - @logto/phrases@1.31.0
+  - @logto/shared@3.4.3
+  - @logto/connector-kit@5.1.1
+
+## 1.42.0
+
+### Minor Changes
+
+- 829646a4a: add custom domain verification file support
+
+  Admins can configure small text or JSON verification files for active custom domains. Files are limited to root-level filenames or paths under `/.well-known/`, with caps on count and content size. Exact GET and HEAD matches are served with safe content types while existing Logto routes take precedence.
+
+### Patch Changes
+
+- 292da8db9: support wildcard email address patterns in custom email blocklist rules
+- ea3ede350: remove email blocklist policy from public sign-in experience responses
+- a1e0f2b680: prevent internal application secrets from being exposed through Management APIs
+- Updated dependencies [af678dd84]
+- Updated dependencies [292da8db9]
+- Updated dependencies [1650be05e]
+- Updated dependencies [829646a4a]
+- Updated dependencies [58cb52c705]
+  - @logto/core-kit@2.12.0
+  - @logto/phrases@1.30.0
+  - @logto/shared@3.4.2
+  - @logto/phrases-experience@1.14.1
+
 ## 1.41.0
 
 ### Minor Changes
@@ -374,9 +548,9 @@
 
   ```ts
   await logtoClient.signIn({
-    redirectUri: "https://your.app/callback",
+    redirectUri: 'https://your.app/callback',
     extraParams: {
-      ui_locales: "fr-CA fr en",
+      ui_locales: 'fr-CA fr en',
     },
   });
   ```
@@ -714,11 +888,7 @@
   For example, if you are using SHA256 with a salt, you can store the password in the following format:
 
   ```json
-  [
-    "sha256",
-    ["salt123", "@"],
-    "c465f66c6ac481a7a17e9ed5b4e2e7e7288d892f12bf1c95c140901e9a70436e"
-  ]
+  ["sha256", ["salt123", "@"], "c465f66c6ac481a7a17e9ed5b4e2e7e7288d892f12bf1c95c140901e9a70436e"]
   ```
 
   Then when the user uses the password (`password123`), the `legacyVerify` function will use the `sha256` algorithm with the `salt123` and the input password to verify the password.
@@ -726,9 +896,9 @@
   In this case, `salt123` is the first argument, `@` is the input password, then the following code will be executed:
 
   ```ts
-  const hash = crypto.createHash("sha256");
-  hash.update("salt123" + "password123");
-  const expectedHashedValue = hash.digest("hex");
+  const hash = crypto.createHash('sha256');
+  hash.update('salt123' + 'password123');
+  const expectedHashedValue = hash.digest('hex');
   ```
 
 ### Patch Changes
@@ -886,8 +1056,8 @@
   // Example usage (React project using React SDK)
   void signIn({
     redirectUri,
-    loginHint: "user@example.com",
-    firstScreen: "signIn", // or 'register'
+    loginHint: 'user@example.com',
+    firstScreen: 'signIn', // or 'register'
   });
   ```
 
@@ -957,14 +1127,14 @@
   For example, in the JavaScript SDK:
 
   ```ts
-  import LogtoClient from "@logto/client";
+  import LogtoClient from '@logto/client';
 
   const logtoClient = new LogtoClient(/* your configuration */);
 
   logtoClient.signIn({
-    redirectUri: "https://your-app.com/callback",
+    redirectUri: 'https://your-app.com/callback',
     extraParams: {
-      organization_id: "<organization-id>",
+      organization_id: '<organization-id>',
     },
   });
   ```

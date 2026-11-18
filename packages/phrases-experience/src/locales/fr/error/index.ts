@@ -39,14 +39,30 @@ const error = {
   invalid_link: 'Lien invalide',
   invalid_link_description: "Votre jeton à usage unique a peut-être expiré ou n'est plus valide.",
   captcha_verification_failed: 'Erreur lors de la vérification du captcha.',
+  send_verification_code_failed:
+    "Échec de l'envoi du code de vérification. Veuillez réessayer plus tard.",
+  send_verification_code_failed_use_password:
+    "Échec de l'envoi du code de vérification. Veuillez plutôt vous connecter avec votre mot de passe.",
   terms_acceptance_required: 'Acceptation des conditions requise',
   terms_acceptance_required_description: 'Vous devez accepter les conditions pour continuer.',
   something_went_wrong: 'Quelque chose a mal tourné',
+  account_suspended: 'Compte suspendu',
+  account_suspended_description:
+    "Ce compte a été suspendu. Veuillez contacter l'administrateur pour obtenir de l'aide.",
   access_denied: 'Accès refusé',
   application_access_denied:
     "Vous n'avez pas la permission d'accéder à cette application.\nVeuillez contacter votre administrateur pour obtenir de l'aide.",
   feature_not_enabled:
     "Vous n'avez pas la permission d'accéder à cette fonctionnalité. Veuillez contacter votre administrateur pour obtenir de l'aide.",
+  wallet_not_found:
+    'Aucun portefeuille Ethereum détecté. Installez une extension de portefeuille dans votre navigateur et réessayez.',
+  wallet_not_supported:
+    "La connexion par portefeuille n'est prise en charge que dans un navigateur avec une extension de portefeuille installée.",
+  wallet_request_rejected: 'La demande du portefeuille a été refusée. Veuillez réessayer.',
+  wallet_unsupported_chain:
+    'Votre portefeuille est connecté à un réseau non pris en charge. Changez de réseau et réessayez.',
+  wallet_signature_invalid:
+    'La signature du portefeuille est invalide ou a expiré. Veuillez réessayer.',
 };
 
 export default Object.freeze(error);

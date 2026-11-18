@@ -2,19 +2,51 @@
  * @overview This file implements the `token_exchange` grant type. The grant type is used to impersonate
  *
  * @see {@link https://github.com/logto-io/rfcs | Logto RFCs} for more information about RFC 0005.
+ *
+ * @remarks
+ * Unlike the `refresh_token` and `client_credentials` grants, this grant is Logto's own and has
+ * no upstream counterpart to stay in sync with. It still consumes the shared token-endpoint
+ * helpers from v9's `grant_common.js` through the `oidc-provider-internals.js` seam module, so
+ * the sender-constraining (mTLS and DPoP) behavior stays aligned with the forked grants.
+ *
+ * This grant is deliberately a first-party-only capability: the exchange involves no user
+ * consent, while third-party access is governed by the consent model — the two are mutually
+ * exclusive, so third-party applications can never enable this grant type (enforced when
+ * configuring applications, see `assertThirdPartyApplicationTokenExchangeDisabled`). That is
+ * also why no per-client scope filtering happens here: every client that can reach this grant
+ * is first-party and carries no scope allowlist, so issued scopes are capped only by what the
+ * user owns and by the global OIDC scope set. A third party that needs an exchanged token
+ * should obtain it from the tenant's own machine-to-machine backend instead of performing the
+ * exchange itself.
+ *
+ * Subject tokens are not only minted by the tenant's trusted backends: when the account center
+ * enables the personal access token field, end users can create their own personal access tokens
+ * through the Account API. Any first-party client with this grant enabled, including public
+ * clients, can then exchange such a token for access tokens covering everything the user's roles
+ * grant, until the token expires, independent of the user's sign-in session or MFA. Tenants that
+ * must not expose this (e.g. the admin tenant) should keep that field disabled.
  */
 
 import { buildOrganizationUrn } from '@logto/core-kit';
 import { GrantType } from '@logto/schemas';
 import { nanoid } from 'nanoid';
-import type { Provider } from 'oidc-provider';
 import { errors } from 'oidc-provider';
-import resolveResource from 'oidc-provider/lib/helpers/resolve_resource.js';
-import validatePresence from 'oidc-provider/lib/helpers/validate_presence.js';
-import instance from 'oidc-provider/lib/helpers/weak_cache.js';
 
 import { type EnvSet } from '#src/env-set/index.js';
 import { assertUserHasApplicationAccessForOidc } from '#src/oidc/application-access-control.js';
+import {
+  applyDpopBinding,
+  applyMtlsBinding,
+  checkDpopRequired,
+  checkMtlsCert,
+  createAccessToken,
+  dpopValidate,
+  getProviderConfiguration,
+  type GrantTypeHandler,
+  resolveResource,
+  validateAccount,
+  validatePresence,
+} from '#src/oidc/oidc-provider-internals.js';
 import type Libraries from '#src/tenants/Libraries.js';
 import type Queries from '#src/tenants/Queries.js';
 import assertThat from '#src/utils/assert-that.js';
@@ -24,7 +56,7 @@ import {
   isThirdPartyApplication,
   reversedResourceAccessTokenTtl,
 } from '../../resource.js';
-import { handleClientCertificate, handleDPoP, checkOrganizationAccess } from '../utils.js';
+import { checkOrganizationAccess } from '../utils.js';
 
 import { validateSubjectToken } from './account.js';
 import { handleActorToken } from './actor-token.js';
@@ -60,11 +92,11 @@ type Handler = (
   envSet: EnvSet,
   queries: Queries,
   applicationAccessControl: Libraries['applicationAccessControl']
-) => Parameters<Provider['registerGrantType']>[1];
+) => GrantTypeHandler;
 
-export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx, next) => {
+export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx) => {
   const { client, params, requestParamScopes, provider } = ctx.oidc;
-  const { Account, AccessToken, Grant } = provider;
+  const { AccessToken, Grant } = provider;
 
   assertThat(params, new InvalidGrant('parameters must be available'));
   assertThat(client, new InvalidClient('client must be available'));
@@ -73,11 +105,17 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
 
   validatePresence(ctx, ...requiredParameters);
 
-  const providerInstance = instance(provider);
   const {
-    features: { userinfo, resourceIndicators },
+    features: {
+      userinfo,
+      resourceIndicators,
+      mTLS: { getCertificate },
+    },
     scopes: oidcScopes,
-  } = providerInstance.configuration();
+    findAccount,
+  } = getProviderConfiguration(provider);
+
+  const dPoP = await dpopValidate(ctx);
 
   const { userId, subjectTokenId } = await validateSubjectToken({
     queries,
@@ -90,11 +128,7 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
     },
   });
 
-  const account = await Account.findAccount(ctx, userId);
-
-  if (!account) {
-    throw new InvalidGrant('subject token invalid (referenced account not found)');
-  }
+  const account = await validateAccount(ctx, findAccount, { accountId: userId }, 'subject token');
 
   ctx.oidc.entity('Account', account);
 
@@ -115,25 +149,33 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
     clientId: client.clientId,
   } as ConstructorParameters<typeof Grant>[0]);
 
-  const { organizationId } = await checkOrganizationAccess(ctx, queries, account, isThirdParty);
-
-  const accessToken = new AccessToken({
-    accountId: account.accountId,
-    clientId: client.clientId,
-    gty: GrantType.TokenExchange,
-    client,
-    grantId,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    scope: undefined!,
-    extra: {
-      ...(subjectTokenId ? { subjectTokenId } : {}),
-    },
+  const { organizationId } = await checkOrganizationAccess(ctx, {
+    envSet,
+    queries,
+    account,
+    isThirdParty,
   });
 
-  await handleDPoP(ctx, accessToken);
-  await handleClientCertificate(ctx, accessToken);
+  const accessToken = createAccessToken(
+    ctx,
+    AccessToken,
+    {
+      accountId: account.accountId,
+      grantId,
+    },
+    GrantType.TokenExchange
+  );
+  accessToken.extra = {
+    ...(subjectTokenId ? { subjectTokenId } : {}),
+  };
 
-  /** The scopes requested by the client. If not provided, use the scopes from the refresh token. */
+  await applyDpopBinding(ctx, dPoP, accessToken);
+  checkDpopRequired(ctx, dPoP);
+
+  const cert = checkMtlsCert(ctx, getCertificate);
+  applyMtlsBinding(accessToken, cert);
+
+  /** The scopes requested by the client. */
   const scope = requestParamScopes;
   const resource = await resolveResource(
     ctx,
@@ -232,7 +274,5 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
     scope: accessToken.scope,
     token_type: accessToken.tokenType,
   };
-
-  await next();
 };
 /* eslint-enable @silverhand/fp/no-mutation, @typescript-eslint/no-unsafe-assignment */

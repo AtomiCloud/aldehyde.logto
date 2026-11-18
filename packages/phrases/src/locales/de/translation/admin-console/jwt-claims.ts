@@ -42,6 +42,8 @@ const jwt_claims = {
   test_tab: 'Testumgebung',
   jwt_claims_description:
     'Standardansprüche werden automatisch im JWT enthalten und können nicht überschrieben werden.',
+  reserved_claims_description:
+    '`acr`, `amr` und `auth_time` sind bei Benutzerzugriffstoken reserviert: Logto leitet sie immer selbst ab und ignoriert benutzerdefinierte Ansprüche mit diesen Schlüsseln.',
   user_data: {
     title: 'Benutzerdaten',
     subtitle:
@@ -107,6 +109,11 @@ const jwt_claims = {
     subtitle: 'Mock-Token und Benutzerdaten für Tests anpassen.',
     run_button: 'Test ausführen',
     result_title: 'Testergebnis',
+  },
+  sandbox_warning: {
+    title: 'Skripte laufen mit Serverrechten',
+    description:
+      'Bei selbst gehostetem Logto läuft dieses Skript in derselben Umgebung wie Logto selbst: Es kann Server-Umgebungsvariablen lesen und Dienste in deinem internen Netzwerk erreichen. Es ist nicht sandboxed. Gib nur Personen Zugriff auf diese Seite, denen du auch Zugriff auf den Server anvertrauen würdest.',
   },
   form_error: {
     invalid_json: 'Ungültiges JSON-Format',

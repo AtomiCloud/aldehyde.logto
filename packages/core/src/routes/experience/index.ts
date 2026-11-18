@@ -10,11 +10,18 @@
  * The experience APIs can be used by developers to build custom user interaction experiences.
  */
 
-import { identificationApiPayloadGuard, InteractionEvent } from '@logto/schemas';
+import {
+  ExtraParamsKey,
+  extraParamsObjectGuard,
+  identificationApiPayloadGuard,
+  InteractionEvent,
+} from '@logto/schemas';
+import { conditional, trySafe } from '@silverhand/essentials';
 import type Router from 'koa-router';
 import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
+import { assignInteractionResults } from '#src/libraries/session/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
 import koaInteractionDetails from '#src/middleware/koa-interaction-details.js';
 import assertThat from '#src/utils/assert-that.js';
@@ -27,6 +34,7 @@ import { experienceRoutes } from './const.js';
 import koaExperienceAuditLog from './middleware/koa-experience-audit-log.js';
 import { koaExperienceInteractionHooks } from './middleware/koa-experience-interaction-hooks.js';
 import koaExperienceInteraction from './middleware/koa-experience-interaction.js';
+import koaStepUpRouteGuard from './middleware/koa-step-up-route-guard.js';
 import profileRoutes from './profile-routes.js';
 import {
   sanitizedInteractionStorageGuard,
@@ -56,7 +64,8 @@ export default function experienceApiRoutes<T extends AnonymousRouter>(
       koaInteractionDetails(provider),
       koaExperienceInteractionHooks(libraries),
       koaExperienceInteraction(tenant),
-      koaExperienceAuditLog()
+      koaExperienceAuditLog(),
+      koaStepUpRouteGuard()
     );
 
   experienceRouter.put(
@@ -66,15 +75,27 @@ export default function experienceApiRoutes<T extends AnonymousRouter>(
         interactionEvent: z.nativeEnum(InteractionEvent),
         captchaToken: z.string().optional(),
       }),
-      // 422 is returned if the captcha verification fails
-      status: [204, 422],
+      response: z
+        .object({
+          redirectTo: z.string(),
+        })
+        .optional(),
+      // 200 is returned when a pure step-up needs no UI and the interaction was finished here:
+      // either the session already satisfies the class it pursues (the client returns to the
+      // application with the session's context untouched), or the pinned user cannot reach it
+      // (`unmet_authentication_requirements`); 400 is returned if a pure step-up cannot be created;
+      // 404 is returned if the pinned subject of a pure step-up no longer exists; 422 is returned
+      // if the captcha verification fails
+      status: [200, 204, 400, 404, 422],
     }),
     async (ctx, next) => {
       const { interactionEvent, captchaToken } = ctx.guard.body;
       const { createLog } = ctx;
 
-      createLog(`Interaction.${interactionEvent}.Create`);
+      const log = createLog(`Interaction.${interactionEvent}.Create`);
 
+      // Detects a pure step-up from the login prompt details and pins the subject from the
+      // session; the prompt details never change, so a retry re-derives the same mode.
       const experienceInteraction = new ExperienceInteraction(ctx, tenant, interactionEvent);
 
       // Verify the captcha if provided, this is optional,
@@ -83,11 +104,31 @@ export default function experienceApiRoutes<T extends AnonymousRouter>(
         await experienceInteraction.verifyCaptcha(captchaToken);
       }
 
+      ctx.experienceInteraction = experienceInteraction;
+
+      // A pure step-up that needs no UI is finished here, before anything is rendered: either the
+      // session's context already satisfies the class it pursues, or the pinned user cannot reach
+      // that class at all. The latter is returned to the client as the OIDC error
+      // `unmet_authentication_requirements`.
+      const finished = await experienceInteraction.finishStepUpAtCreation();
+
+      if (finished) {
+        log.append({
+          interaction: experienceInteraction.toJson(),
+          // The subject is pinned but unverified, so `identifiedUserId` is unset here.
+          userId: experienceInteraction.subjectUserId,
+          ...conditional(finished.unmet && { error: 'unmet_authentication_requirements' }),
+        });
+
+        ctx.body = { redirectTo: finished.redirectTo };
+        ctx.status = 200;
+
+        return next();
+      }
+
       // Save new experience interaction instance.
       // This will overwrite any existing interaction data in the storage.
       await experienceInteraction.save();
-
-      ctx.experienceInteraction = experienceInteraction;
 
       ctx.status = 204;
 
@@ -178,10 +219,19 @@ export default function experienceApiRoutes<T extends AnonymousRouter>(
     }),
     async (ctx, next) => {
       const { createLog, experienceInteraction } = ctx;
+      const { interactionEvent, isStepUp } = experienceInteraction;
 
-      const log = createLog(`Interaction.${experienceInteraction.interactionEvent}.Submit`);
+      // A pure step-up completes through its own allow-list path and has its own audit key, so a
+      // step-up submission is never mistaken for a sign-in in the audit log.
+      const log = createLog(
+        isStepUp
+          ? `Interaction.${interactionEvent}.StepUp.Submit`
+          : `Interaction.${interactionEvent}.Submit`
+      );
 
-      await ctx.experienceInteraction.submit(log);
+      await (isStepUp
+        ? experienceInteraction.submitStepUp(log)
+        : experienceInteraction.submit(log));
 
       log.append({
         interaction: ctx.experienceInteraction.toJson(),
@@ -193,16 +243,76 @@ export default function experienceApiRoutes<T extends AnonymousRouter>(
     }
   );
 
+  experienceRouter.post(
+    experienceRoutes.abort,
+    koaGuard({
+      body: z.object({
+        // RFC 6749 §4.1.2.1 allows only %x20-21 / %x23-5B / %x5D-7E in `error_description`:
+        // printable ASCII without `"` (0x22) and `\` (0x5c). The explicit code point ranges
+        // keep the set unambiguous.
+        reason: z
+          .string()
+          .max(256)
+          .regex(/^[ !\u0023-\u005B\u005D-\u007E]*$/)
+          .optional(),
+      }),
+      response: z.object({
+        redirectTo: z.string(),
+      }),
+      status: [200, 400],
+    }),
+    async (ctx, next) => {
+      const { reason } = ctx.guard.body;
+
+      // Finish the interaction with a standard OAuth error, so the user agent returns to the
+      // client's redirect URI with the error, the original `state`, and `iss`. This only needs
+      // the provider interaction record, so it works at any step, including consent.
+      await assignInteractionResults(ctx, provider, {
+        error: 'access_denied',
+        ...conditional(reason && { error_description: reason }),
+      });
+
+      ctx.status = 200;
+
+      return next();
+    }
+  );
+
+  experienceRouter.get(
+    experienceRoutes.directSignIn,
+    koaGuard({
+      status: [200],
+      response: z.object({
+        directSignIn: z.string().optional(),
+      }),
+    }),
+    async (ctx, next) => {
+      const params =
+        trySafe(() => extraParamsObjectGuard.parse(ctx.interactionDetails.params)) ?? {};
+      const directSignIn = params[ExtraParamsKey.DirectSignIn];
+
+      // Read the OIDC request parameter directly instead of the experience interaction storage.
+      // The lookup must work before the interaction is initialized: a direct sign-in can fail
+      // while requesting the authorization URL, which is exactly when the experience storage
+      // does not exist yet.
+      ctx.set('Cache-Control', 'no-store');
+      ctx.body = { ...conditional(directSignIn && { directSignIn }) };
+      ctx.status = 200;
+
+      return next();
+    }
+  );
+
   experienceRouter.get(
     `${experienceRoutes.interaction}`,
     koaGuard({
-      status: [200],
+      // 404 is returned if the pinned subject of a pure step-up no longer exists
+      status: [200, 404],
       response: sanitizedInteractionStorageGuard,
     }),
     async (ctx, next) => {
       const { experienceInteraction } = ctx;
-
-      ctx.body = experienceInteraction.toSanitizedJson();
+      ctx.body = await experienceInteraction.toSanitizedJson();
       ctx.status = 200;
       return next();
     }

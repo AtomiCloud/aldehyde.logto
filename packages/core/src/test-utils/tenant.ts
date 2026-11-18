@@ -11,6 +11,7 @@ import { createLogtoConfigLibrary, type LogtoConfigLibrary } from '#src/librarie
 import Libraries from '#src/tenants/Libraries.js';
 import Queries from '#src/tenants/Queries.js';
 import type TenantContext from '#src/tenants/TenantContext.js';
+import { type WithDefaultTenant } from '#src/tenants/with-default-tenant.js';
 
 import { SubscriptionLibrary } from '../libraries/subscription.js';
 
@@ -79,6 +80,8 @@ export class MockTenant implements TenantContext {
   public libraries: Libraries;
   public sentinel: Sentinel;
   public readonly subscription: SubscriptionLibrary;
+  /** Runs the task against this mock tenant unless a test replaces it. */
+  public withDefaultTenant: WithDefaultTenant;
 
   // eslint-disable-next-line max-params
   constructor(
@@ -88,10 +91,14 @@ export class MockTenant implements TenantContext {
     librariesOverride?: Partial2<Libraries>,
     logtoConfigsOverride?: Partial<LogtoConfigLibrary>
   ) {
+    this.withDefaultTenant = async (run) => run(this);
     this.wellKnownCache = new MockWellKnownCache();
     this.queries = new MockQueries(queriesOverride, this.wellKnownCache);
 
-    this.logtoConfigs = { ...createLogtoConfigLibrary(this.queries), ...logtoConfigsOverride };
+    this.logtoConfigs = {
+      ...createLogtoConfigLibrary(this.queries),
+      ...logtoConfigsOverride,
+    };
     this.cloudConnection = createCloudConnectionLibrary(this.logtoConfigs);
     this.connectors = {
       ...createConnectorLibrary(this.queries, this.cloudConnection),

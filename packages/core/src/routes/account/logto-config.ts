@@ -12,12 +12,14 @@ import {
   userLogtoConfigResponseGuard,
 } from '#src/libraries/user-logto-config.js';
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 
 import RequestError from '../../errors/RequestError/index.js';
 import assertThat from '../../utils/assert-that.js';
 import type { UserRouter, RouterInitArgs } from '../types.js';
 
 import { accountApiPrefix } from './constants.js';
+import { assertIdentityVerified } from './utils/identity-verification.js';
 
 export default function logtoConfigRoutes<T extends UserRouter>(...args: RouterInitArgs<T>) {
   const [router, { queries }] = args;
@@ -58,23 +60,23 @@ export default function logtoConfigRoutes<T extends UserRouter>(...args: RouterI
     `${accountApiPrefix}/logto-configs`,
     koaGuard({
       body: z.object({
-        mfa: userMfaDataGuard.optional(),
+        // `required` is admin-managed and must not be editable through the Account API.
+        mfa: userMfaDataGuard.omit({ required: true }).optional(),
         passkeySignIn: userPasskeySignInDataGuard.optional(),
       }),
       response: userLogtoConfigResponseGuard,
-      status: [200, 400, 401],
+      status: [200, 400, 401, 403],
     }),
     async (ctx, next) => {
-      const { id: userId, identityVerified, scopes } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
 
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      assertIdentityVerified(ctx);
       assertThat(
         scopes.has(UserScope.Identities),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+      await assertFirstPartyClient(queries, clientId);
+
       const { fields } = ctx.accountCenter;
       const passkeyControl = fields.passkey ?? fields.mfa;
       assertThat(

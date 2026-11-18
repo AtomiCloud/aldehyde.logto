@@ -11,6 +11,7 @@ import { GlobalRoute, TenantsContext } from '@/contexts/TenantsProvider';
 import { createLocalCheckoutSession } from '@/utils/checkout';
 import { dropLeadingSlash } from '@/utils/url';
 
+import { useBillingCustomerChoice } from './use-billing-customer-choice';
 import useTenantPathname from './use-tenant-pathname';
 
 type SubscribeProps = {
@@ -31,12 +32,14 @@ const useSubscribe = () => {
   const { t } = useTranslation(undefined, { keyPrefix: 'admin_console' });
   const cloudApi = useCloudApi({ hideErrorToast: true });
   const { updateTenant } = useContext(TenantsContext);
-  const { mutateSubscriptionQuotaAndUsages, onCurrentSubscriptionUpdated } =
+  const { currentSubscription, mutateSubscriptionQuotaAndUsages, onCurrentSubscriptionUpdated } =
     useContext(SubscriptionDataContext);
 
   const { getUrl } = useTenantPathname();
+  const { chooseBillingCustomer } = useBillingCustomerChoice();
   const [isSubscribeLoading, setIsSubscribeLoading] = useState(false);
 
+  /** Opens Stripe Checkout; resolves to `false` when it did not, e.g. the user cancelled. */
   const subscribe = async ({
     skuId,
     planId,
@@ -44,9 +47,9 @@ const useSubscribe = () => {
     tenantId,
     tenantData,
     isDowngrade = false,
-  }: SubscribeProps) => {
+  }: SubscribeProps): Promise<boolean> => {
     if (isSubscribeLoading) {
-      return;
+      return false;
     }
     setIsSubscribeLoading(true);
 
@@ -61,8 +64,17 @@ const useSubscribe = () => {
     ).href;
 
     try {
+      const customerChoice = await chooseBillingCustomer(
+        tenantId ? currentSubscription : undefined
+      );
+
+      if (!customerChoice) {
+        return false;
+      }
+
       const { redirectUri, sessionId } = await cloudApi.post('/api/checkout-session', {
         body: {
+          ...customerChoice,
           skuId,
           successCallbackUrl,
           tenantId,
@@ -74,7 +86,7 @@ const useSubscribe = () => {
 
       if (!redirectUri) {
         toast.error(t('general.unknown_error'));
-        return;
+        return false;
       }
 
       createLocalCheckoutSession({
@@ -85,6 +97,7 @@ const useSubscribe = () => {
       });
 
       window.location.assign(redirectUri);
+      return true;
     } finally {
       setIsSubscribeLoading(false);
     }

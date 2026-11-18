@@ -35,6 +35,8 @@ const description = {
   reset_password: 'إعادة تعيين كلمة المرور',
   reset_password_description:
     'أدخل {{types, list(type: disjunction;)}} المرتبطة بحسابك، وسنرسل لك رمز التحقق لإعادة تعيين كلمة المرور.',
+  reset_password_magic_link_description:
+    'أدخل عنوان البريد الإلكتروني المرتبط بحسابك لمتابعة إعادة تعيين كلمة المرور.',
   new_password: 'كلمة المرور الجديدة',
   set_password: 'تعيين كلمة المرور',
   password_changed: 'تم تغيير كلمة المرور',
@@ -99,6 +101,8 @@ const description = {
     'لقد قامت الشركة بتمكين تسجيل الدخول الموحد لحساب البريد الإلكتروني {{email}}. يمكنك الاستمرار في تسجيل الدخول باستخدام موفرات SSO التالية.',
   single_sign_on_enabled: 'تم تمكين تسجيل الدخول الموحد لهذا الحساب',
   authorize_title: 'السماح لـ {{name}}',
+  unregistered_client_notice:
+    'هذا التطبيق معلن ذاتيًا من قِبل <hostname>{{host}}</hostname>، بما في ذلك اسمه وشعاره. يرجى التحقق من اسم المضيف قبل المتابعة.',
   request_permission: '{{name}} يطلب الوصول إلى:',
   grant_organization_access: 'منح الوصول إلى المؤسسة:',
   authorize_personal_data_usage: 'السماح باستخدام البيانات الشخصية الخاصة بك:',
@@ -125,6 +129,8 @@ const description = {
   switch_account_title: 'أنت حاليًا مسجل الدخول كـ {{account}}',
   switch_account_description:
     'للمتابعة، سيتم تسجيل الخروج من الحساب الحالي، والتبديل تلقائيًا إلى الحساب الجديد.',
+  continue_to_app_title: 'العودة إلى التطبيق',
+  continue_to_app_description: 'تابع للعودة إلى التطبيق.',
   about_yourself: 'أخبرنا عن نفسك',
   verify_identity: 'تحقق من هويتك',
   choose_verification_method: 'اختر طريقة تسجيل الدخول',
@@ -137,6 +143,7 @@ const description = {
     phone_verification_code: 'رمز التحقق عبر الهاتف',
     verification_code_description: 'إرسال إلى {{target}}',
   },
+  select_wallet: 'اختر محفظة',
 };
 
 export default Object.freeze(description);

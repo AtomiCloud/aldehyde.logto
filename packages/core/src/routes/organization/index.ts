@@ -20,6 +20,7 @@ import organizationScopeRoutes from '../organization-scope/index.js';
 import { type ManagementApiRouter, type RouterInitArgs } from '../types.js';
 
 import applicationRoutes from './application/index.js';
+import { organizationResponseGuard } from './guards.js';
 import jitRoutes from './jit/index.js';
 import userRoutes from './user/index.js';
 import { errorHandler } from './utils.js';
@@ -58,6 +59,7 @@ export default function organizationRoutes<T extends ManagementApiRouter>(
     searchFields: ['name'],
     disabled: { get: true },
     idLength: 12,
+    entityGuard: organizationResponseGuard,
     hooks: {
       afterInsert: async (ctx) => {
         captureEvent({ tenantId, request: ctx.req }, ProductEvent.OrganizationCreated);
@@ -72,9 +74,13 @@ export default function organizationRoutes<T extends ManagementApiRouter>(
     '/',
     koaPagination(),
     koaGuard({
-      query: z.object({ q: z.string().optional(), showFeatured: z.string().optional() }),
+      query: z.object({
+        q: z.string().optional(),
+        showFeatured: z.string().optional(),
+        jitEmailDomain: z.string().min(1).optional(),
+      }),
       response: (
-        Organizations.guard.merge(
+        organizationResponseGuard.merge(
           // For `showFeatured` query
           z
             .object({
@@ -90,7 +96,13 @@ export default function organizationRoutes<T extends ManagementApiRouter>(
       const { query } = ctx.guard;
       const search = parseSearchOptions(['id', 'name'], query);
       const { limit, offset } = ctx.pagination;
-      const [count, entities] = await organizations.findAll(limit, offset, search);
+      const [count, entities] = query.jitEmailDomain
+        ? await organizations.jit.emailDomains.findOrganizations(
+            query.jitEmailDomain,
+            { limit, offset },
+            search
+          )
+        : await organizations.findAll(limit, offset, search);
 
       ctx.pagination.totalCount = count;
       ctx.body = yes(query.showFeatured)

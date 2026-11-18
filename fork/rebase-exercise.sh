@@ -6,8 +6,8 @@ set -euo pipefail
 
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd "${script_dir}/.." && pwd)"
-readonly old_ref="${1:-refs/tags/v1.40.1}"
-readonly new_ref="${2:-refs/tags/v1.41.0}"
+readonly old_ref="${1:-refs/tags/v1.41.0}"
+readonly new_ref="${2:-refs/tags/v1.46.0}"
 readonly temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/aldehyde-rebase-exercise.XXXXXX")"
 readonly exercise_tree="${temporary_root}/worktree"
 
@@ -38,7 +38,7 @@ git fetch --force --tags upstream
 
 old_commit="$(git rev-parse "${old_ref}^{commit}")"
 new_commit="$(git rev-parse "${new_ref}^{commit}")"
-functional_commit="$(git log --format=%H --grep='^feat(core): boot-seed logto-operator M2M credential on startup$' -1 "${new_commit}..HEAD")"
+functional_commit="$(git log --ancestry-path --format=%H --grep='^feat(core): boot-seed logto-operator M2M credential on startup$' -1 "${new_commit}..HEAD")"
 [[ -n "${functional_commit}" ]] || die 'could not locate the isolated functional patch commit'
 
 info "Materialize old monthly pin ${old_ref} (${old_commit})"

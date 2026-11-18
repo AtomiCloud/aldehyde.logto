@@ -14,11 +14,14 @@ const connector = {
   template_not_found: 'Bağlayıcı yapılandırmasında doğru şablon bulunamıyor.',
   template_not_supported: 'Bağlayıcı bu şablon türünü desteklemiyor.',
   rate_limit_exceeded: 'Tetikleyici oran sınırına ulaşıldı. Lütfen daha sonra tekrar deneyin.',
+  usage_limit_exceeded: 'E-posta hizmeti kullanım sınırına ulaşıldı.',
   not_implemented: '{{method}}: henüz uygulanmadı.',
   social_invalid_access_token: 'Bağlayıcının erişim belirteci geçersiz.',
   invalid_auth_code: 'Bağlayıcının yetki kodu geçersiz.',
   social_invalid_id_token: 'Bağlayıcının kimliği geçersiz.',
   authorization_failed: 'Kullanıcının yetkilendirme işlemi başarısız oldu.',
+  social_provider_unreachable:
+    'Sosyal sağlayıcıya ulaşılamadı ({{reason}}). Lütfen daha sonra tekrar deneyin.',
   social_auth_code_invalid:
     'Erişim belirtici alınamıyor, lütfen yetkilendirme kodunu kontrol edin.',
   more_than_one_sms: "SMS bağlayıcılarının sayısı 1'den fazla.",

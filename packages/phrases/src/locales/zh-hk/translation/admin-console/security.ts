@@ -34,6 +34,15 @@ const security = {
       description:
         'Cloudflare 的智能 CAPTCHA 替代方案，提供非侵入性的機器人保護，同時確保無視覺難題的無縫用戶體驗。',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        '開源、可自行託管的工作量證明 CAPTCHA，無需視覺謎題或第三方服務，適合無法存取其他 CAPTCHA 服務的地區。',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description: '極驗自適應 CAPTCHA，提供本地化驗證體驗，在中國大陸存取穩定。',
+    },
   },
   captcha_details: {
     back_to_security: '返回安全性',
@@ -49,6 +58,12 @@ const security = {
     domain_placeholder: 'www.google.com（預設）或 recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA 金鑰 ID',
     recaptcha_api_key: '項目的 API 金鑰',
+    cap_endpoint: 'Cap 端點',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      '此端點使用 HTTP，僅適用於本地開發。瀏覽器會攔截 HTTPS 登入頁發出的 HTTP 請求，且密鑰將以明文傳輸。生產環境請使用 HTTPS。',
+    geetest_captcha_id: '驗證 ID',
+    geetest_captcha_key: '驗證密鑰',
     deletion_description: '你確定要刪除此 CAPTCHA 供應商嗎？',
     captcha_deleted: 'CAPTCHA 供應商已成功刪除',
     setup_captcha: '設定 CAPTCHA',
@@ -57,6 +72,10 @@ const security = {
     mode_checkbox: '複選框驗證',
     mode_notice:
       '驗證模式在 Google Cloud Console 的 reCAPTCHA 金鑰設定中定義。更改此處的模式需要匹配的金鑰類型。',
+    score_threshold: '分數門檻',
+    score_threshold_description:
+      '低於門檻的分數會被拒絕。0.0 允許所有分數，1.0 只允許滿分。預設值為 0.5。',
+    score_threshold_error: '分數門檻必須介乎 0 至 1 之間。',
   },
   password_policy: {
     password_requirements: '密碼要求',
@@ -133,21 +152,36 @@ const security = {
     },
     manual_unlock: {
       title: '手動解鎖',
-      description: '通過確認用戶身份並輸入識別符立即解鎖用戶。',
-      unblock_by_identifiers: '按照識別符解鎖',
+      description: '透過確認用戶身份並輸入其識別符或用戶 ID 立即解鎖用戶。',
+      unblock_by_identifiers: '按照識別符或用戶 ID 解鎖',
       modal_description_1:
-        '由於多次登入/註冊嘗試失敗而暫時鎖定了一個識別符。為了保護安全，訪問將在封鎖時長後自動恢復。',
+        '由於多次登入/註冊或安全驗證嘗試失敗而暫時鎖定了一個識別符或用戶 ID。為了保護安全，訪問將在封鎖時長後自動恢復。',
       modal_description_2: ' 只有在確認用戶身份並確保沒有未授權的訪問嘗試後才進行手動解鎖。',
-      placeholder: '輸入識別符（郵件地址/電話號碼/用戶名）',
+      placeholder: '輸入識別符或用戶 ID（郵件地址/電話號碼/用戶名/用戶 ID）',
       confirm_button_text: '立即解鎖',
       success_toast: '解鎖成功',
-      duplicate_identifier_error: '識別符已添加',
-      empty_identifier_error: '請輸入至少一個識別符',
+      duplicate_identifier_error: '識別符或用戶 ID 已添加',
+      empty_identifier_error: '請輸入至少一個識別符或用戶 ID',
     },
   },
   blocklist: {
     card_title: '電子郵件封鎖清單',
     card_description: '通過封鎖高風險或不需要的電子郵件地址來控制你的用戶群。',
+    custom_email_allowlist: {
+      title: '允許自訂電子郵件地址',
+      description:
+        '新增規則，只允許特定的電子郵件網域、電子郵件地址或萬用字元模式用於新註冊和新綁定的電子郵件。例如：bar@example.com、@example.com、foo*@example.com、*@example.com。gmail.com 和 googlemail.com 網域會被視為等同，且本地部分中的點號會被忽略，因此 foo.bar@gmail.com 與 foobar@googlemail.com 相符。',
+      placeholder: '輸入電子郵件地址、網域或萬用字元模式',
+      duplicate_error: '電子郵件地址、網域或萬用字元電子郵件地址模式已新增',
+      invalid_format_error:
+        '必須是有效的電子郵件地址（bar@example.com）、網域（@example.com）或萬用字元電子郵件地址模式（foo*@example.com，*@example.com）',
+      warnings: {
+        identical_entries: '部分允許清單項目也存在於阻止規則中。相符的電子郵件仍可能被阻止。',
+        blocked_exact_email: '部分精確電子郵件允許項目符合阻止規則。相符的電子郵件仍可能被阻止。',
+        blocked_subaddressing: '部分允許清單項目包含加號（+），但電子郵件子地址已被阻止。',
+        effectively_unusable: '根據這些檢查，目前允許清單可能無法讓任何新的電子郵件通過。',
+      },
+    },
     disposable_email: {
       title: '封鎖一次性電子郵件地址',
       description:
@@ -160,10 +194,12 @@ const security = {
     },
     custom_email_address: {
       title: '封鎖自定義電子郵件地址',
-      description: '添加不能通過 UI 註冊或連結的特定電子郵件域或地址。',
-      placeholder: '輸入被封鎖的電子郵件地址或域（例如 bar@example.com, @example.com）',
-      duplicate_error: '電子郵件地址或域已添加',
-      invalid_format_error: '必須是有效的電子郵件地址(bar@example.com)或域(@example.com)',
+      description:
+        '新增規則，封鎖特定的電子郵件網域、電子郵件地址或萬用字元模式透過 UI 註冊或連結。例如：bar@example.com、@example.com、foo*@example.com、*@example.com。gmail.com 和 googlemail.com 網域會被視為等同，且本地部分中的點號會被忽略，因此 foo.bar@gmail.com 與 foobar@googlemail.com 相符。',
+      placeholder: '輸入電子郵件地址、網域或萬用字元模式',
+      duplicate_error: '電子郵件地址、域或通配符電子郵件地址模式已添加',
+      invalid_format_error:
+        '必須是有效的電子郵件地址（bar@example.com）、域（@example.com）或通配符電子郵件地址模式（foo*@example.com, *@example.com）',
     },
   },
 };

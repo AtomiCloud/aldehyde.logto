@@ -36,6 +36,16 @@ const security = {
       description:
         'ทางเลือก CAPTCHA อัจฉริยะจาก Cloudflare ที่ป้องกันบอทโดยไม่ก่อให้เกิดอุปสรรคต่อผู้ใช้และไม่มีปริศนาภาพ',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'CAPTCHA แบบโอเพนซอร์สที่โฮสต์เองโดยใช้ proof-of-work ไม่มีปริศนาภาพหรือบริการภายนอก เหมาะสำหรับภูมิภาคที่ไม่สามารถเข้าถึงบริการ CAPTCHA อื่นได้',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'CAPTCHA แบบปรับตัวของ GeeTest พร้อมความท้าทายที่แปลเป็นภาษาท้องถิ่นและประสิทธิภาพที่เสถียรในจีนแผ่นดินใหญ่',
+    },
   },
   captcha_details: {
     back_to_security: 'กลับไปที่การรักษาความปลอดภัย',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com (default) or recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA key ID',
     recaptcha_api_key: 'API key ของโปรเจกต์',
+    cap_endpoint: 'เอนด์พอยต์ของ Cap',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'ปลายทางนี้ใช้ HTTP ซึ่งเหมาะสำหรับการพัฒนาในเครื่องเท่านั้น เบราว์เซอร์จะบล็อกคำขอ HTTP จากหน้าลงชื่อเข้าใช้ที่เป็น HTTPS และคีย์ลับจะถูกส่งโดยไม่เข้ารหัส โปรดใช้ HTTPS ในการใช้งานจริง',
+    geetest_captcha_id: 'รหัส CAPTCHA',
+    geetest_captcha_key: 'คีย์ CAPTCHA',
     deletion_description: 'คุณแน่ใจหรือไม่ว่าต้องการลบผู้ให้บริการ CAPTCHA นี้?',
     captcha_deleted: 'ลบผู้ให้บริการ CAPTCHA เรียบร้อยแล้ว',
     setup_captcha: 'ตั้งค่า CAPTCHA',
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: 'ช่องทำเครื่องหมาย',
     mode_notice:
       'โหมดการตรวจสอบถูกกำหนดในการตั้งค่าคีย์ reCAPTCHA ใน Google Cloud Console การเปลี่ยนโหมดที่นี่ต้องใช้ประเภทคีย์ที่ตรงกัน',
+    score_threshold: 'คะแนนขั้นต่ำ',
+    score_threshold_description:
+      'คะแนนที่ต่ำกว่าเกณฑ์จะถูกปฏิเสธ 0.0 อนุญาตทั้งหมด 1.0 อนุญาตเฉพาะคะแนนเต็ม ค่าเริ่มต้นคือ 0.5',
+    score_threshold_error: 'คะแนนขั้นต่ำต้องอยู่ระหว่าง 0 ถึง 1',
   },
   password_policy: {
     password_requirements: 'ข้อกำหนดรหัสผ่าน',
@@ -140,22 +160,41 @@ const security = {
     },
     manual_unlock: {
       title: 'ปลดล็อกด้วยตนเอง',
-      description: 'ปลดล็อกผู้ใช้ทันทีโดยยืนยันตัวตนและป้อนตัวระบุของพวกเขา',
-      unblock_by_identifiers: 'ปลดล็อกด้วยตัวระบุ',
+      description: 'ปลดล็อกผู้ใช้ทันทีโดยยืนยันตัวตนและป้อนตัวระบุหรือ ID ผู้ใช้ของพวกเขา',
+      unblock_by_identifiers: 'ปลดล็อกด้วยตัวระบุหรือ ID ผู้ใช้',
       modal_description_1:
-        'ตัวระบุถูกล็อกชั่วคราวเนื่องจากพยายามเข้าสู่ระบบ/สมัครใช้บริการผิดหลายครั้ง เพื่อความปลอดภัย ระบบจะคืนสิทธิ์เข้าถึงโดยอัตโนมัติหลังหมดระยะเวลาล็อก',
+        'ตัวระบุหรือ ID ผู้ใช้ถูกล็อกชั่วคราวเนื่องจากพยายามเข้าสู่ระบบ/สมัครใช้บริการหรือยืนยันความปลอดภัยผิดหลายครั้ง เพื่อความปลอดภัย ระบบจะคืนสิทธิ์เข้าถึงโดยอัตโนมัติหลังหมดระยะเวลาล็อก',
       modal_description_2:
         ' ปลดล็อกด้วยตนเองต่อเมื่อคุณได้ยืนยันตัวตนของผู้ใช้และแน่ใจว่าไม่มีการพยายามเข้าถึงโดยไม่ได้รับอนุญาต',
-      placeholder: 'ป้อนตัวระบุ (อีเมล / เบอร์โทรศัพท์ / ชื่อผู้ใช้)',
+      placeholder: 'ป้อนตัวระบุหรือ ID ผู้ใช้ (อีเมล / เบอร์โทรศัพท์ / ชื่อผู้ใช้ / ID ผู้ใช้)',
       confirm_button_text: 'ปลดล็อกตอนนี้',
       success_toast: 'ปลดล็อกสำเร็จ',
-      duplicate_identifier_error: 'เพิ่มตัวระบุซ้ำแล้ว',
-      empty_identifier_error: 'โปรดป้อนอย่างน้อยหนึ่งตัวระบุ',
+      duplicate_identifier_error: 'เพิ่มตัวระบุหรือ ID ผู้ใช้แล้ว',
+      empty_identifier_error: 'โปรดป้อนอย่างน้อยหนึ่งตัวระบุหรือ ID ผู้ใช้',
     },
   },
   blocklist: {
     card_title: 'บัญชีดำอีเมล',
     card_description: 'ควบคุมผู้ใช้ของคุณโดยบล็อกอีเมลที่มีความเสี่ยงสูงหรือไม่ต้องการ',
+    custom_email_allowlist: {
+      title: 'อนุญาตที่อยู่อีเมลแบบกำหนดเอง',
+      description:
+        'เพิ่มกฎเพื่ออนุญาตเฉพาะโดเมนอีเมล ที่อยู่อีเมล หรือรูปแบบไวลด์การ์ดที่กำหนดสำหรับการสมัครใหม่และอีเมลที่เชื่อมโยงใหม่ ตัวอย่าง: bar@example.com, @example.com, foo*@example.com, *@example.com ระบบจะถือว่าโดเมน gmail.com และ googlemail.com เทียบเท่ากันและไม่สนใจจุดในส่วน local ดังนั้น foo.bar@gmail.com จึงตรงกับ foobar@googlemail.com',
+      placeholder: 'ป้อนที่อยู่อีเมล โดเมน หรือรูปแบบไวลด์การ์ด',
+      duplicate_error: 'เพิ่มที่อยู่อีเมล โดเมน หรือรูปแบบอีเมลแบบไวลด์การ์ดนี้แล้ว',
+      invalid_format_error:
+        'ต้องเป็นที่อยู่อีเมลที่ถูกต้อง (bar@example.com), โดเมน (@example.com) หรือรูปแบบอีเมลแบบไวลด์การ์ด (foo*@example.com, *@example.com)',
+      warnings: {
+        identical_entries:
+          'บางรายการใน allowlist มีอยู่ในกฎการบล็อกด้วย อีเมลที่ตรงกันอาจยังถูกบล็อก',
+        blocked_exact_email:
+          'อีเมลแบบตรงตัวบางรายการใน allowlist ตรงกับกฎการบล็อก อีเมลที่ตรงกันอาจยังถูกบล็อก',
+        blocked_subaddressing:
+          'บางรายการใน allowlist มีเครื่องหมายบวก (+) แต่การใช้ที่อยู่อีเมลย่อยถูกบล็อก',
+        effectively_unusable:
+          'จากการตรวจสอบเหล่านี้ allowlist ปัจจุบันอาจไม่อนุญาตให้อีเมลใหม่ใดผ่านได้',
+      },
+    },
     disposable_email: {
       title: 'บล็อกอีเมลชั่วคราว (disposable email)',
       description:
@@ -168,10 +207,12 @@ const security = {
     },
     custom_email_address: {
       title: 'บล็อกอีเมลกำหนดเอง',
-      description: 'เพิ่มโดเมนหรืออีเมลที่เฉพาะเจาะจงที่ไม่สามารถลงทะเบียนหรือลิงก์ผ่าน UI ได้',
-      placeholder: 'ป้อนอีเมลหรือโดเมนที่ต้องการบล็อก (เช่น bar@example.com, @example.com)',
-      duplicate_error: 'เพิ่มอีเมลหรือโดเมนนี้แล้ว',
-      invalid_format_error: 'ต้องเป็นอีเมล(bar@example.com) หรือโดเมน(@example.com) ที่ถูกต้อง',
+      description:
+        'เพิ่มกฎเพื่อบล็อกโดเมนอีเมล ที่อยู่อีเมล หรือรูปแบบไวลด์การ์ดที่กำหนดไม่ให้ลงทะเบียนหรือลิงก์ผ่าน UI ตัวอย่าง: bar@example.com, @example.com, foo*@example.com, *@example.com ระบบจะถือว่าโดเมน gmail.com และ googlemail.com เทียบเท่ากันและไม่สนใจจุดในส่วน local ดังนั้น foo.bar@gmail.com จึงตรงกับ foobar@googlemail.com',
+      placeholder: 'ป้อนที่อยู่อีเมล โดเมน หรือรูปแบบไวลด์การ์ด',
+      duplicate_error: 'เพิ่มอีเมล โดเมน หรือรูปแบบที่อยู่อีเมลที่ใช้ไวลด์การ์ดนี้แล้ว',
+      invalid_format_error:
+        'ต้องเป็นอีเมลที่ถูกต้อง (bar@example.com), โดเมน (@example.com) หรือรูปแบบที่อยู่อีเมลที่ใช้ไวลด์การ์ด (foo*@example.com, *@example.com)',
     },
   },
 };

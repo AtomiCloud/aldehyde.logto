@@ -1,5 +1,32 @@
 # @logto/connector-azuread
 
+## 1.7.1
+
+### Patch Changes
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- Updated dependencies [800eb13]
+- Updated dependencies [d89e507]
+- Updated dependencies [9d7d323]
+- Updated dependencies [664e6ac]
+- Updated dependencies [05678f9]
+  - @logto/connector-kit@5.2.0
+
+## 1.7.0
+
+### Minor Changes
+
+- c81931eab4: add a `disableEmailSync` switch to the Microsoft Azure AD connector
+
+  The connector always synced the `mail` attribute returned by Microsoft Graph to the user profile. This switch makes that configurable, matching the control the Azure OIDC SSO connector already offers. It is off by default, so existing connectors keep their current behavior.
+
+### Patch Changes
+
+- @logto/connector-kit@5.1.1
+
 ## 1.6.5
 
 ### Patch Changes

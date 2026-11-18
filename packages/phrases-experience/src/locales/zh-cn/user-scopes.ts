@@ -10,6 +10,8 @@ const user_scopes = {
     'urn:logto:scope:organization_roles': '你的组织角色',
     address: '你的地址',
     'urn:logto:scope:sessions': '你的活跃会话',
+    'urn:logto:scope:trusted_devices': '你的可信设备',
+    'urn:logto:scope:personal_access_tokens': '你的个人访问令牌',
   },
 };
 

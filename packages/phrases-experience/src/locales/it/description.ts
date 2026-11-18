@@ -36,6 +36,8 @@ const description = {
   reset_password: 'Resetta la password',
   reset_password_description:
     'Inserisci il {{types, list(type: disjunction;)}} associato al tuo account, e ti invieremo il codice di verifica per resettare la password.',
+  reset_password_magic_link_description:
+    "Inserisci l'indirizzo email associato al tuo account per continuare a reimpostare la password.",
   new_password: 'Nuova password',
   set_password: 'Imposta una password',
   password_changed: 'Password cambiata',
@@ -102,6 +104,8 @@ const description = {
     "La tua azienda ha abilitato il Single Sign-On per l'account email {{email}}. Puoi continuare ad accedere con i seguenti fornitori di SSO.",
   single_sign_on_enabled: 'Il Single Sign-On è abilitato per questo account',
   authorize_title: 'Autorizza {{name}}',
+  unregistered_client_notice:
+    'Questa app è autodichiarata da <hostname>{{host}}</hostname>, inclusi nome e logo. Verifica il nome host prima di continuare.',
   request_permission: '{{name}} sta richiedendo accesso a:',
   grant_organization_access: "Concedi accesso all'organizzazione:",
   authorize_personal_data_usage: "Autorizza l'utilizzo dei tuoi dati personali:",
@@ -130,6 +134,8 @@ const description = {
   switch_account_title: 'Attualmente sei connesso come {{account}}',
   switch_account_description:
     "Per continuare, verrai disconnesso dall'account attuale e passerai automaticamente al nuovo account.",
+  continue_to_app_title: 'Torna all’app',
+  continue_to_app_description: 'Continua per tornare all’app.',
   about_yourself: 'Parlaci di te',
   verify_identity: 'Verifica la tua identità',
   choose_verification_method: 'Scegli come vuoi accedere',
@@ -142,6 +148,7 @@ const description = {
     phone_verification_code: 'Codice di verifica telefonico',
     verification_code_description: 'Invia a {{target}}',
   },
+  select_wallet: 'Seleziona un portafoglio',
 };
 
 export default Object.freeze(description);

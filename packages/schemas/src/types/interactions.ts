@@ -11,6 +11,12 @@ import {
 } from '../foundations/index.js';
 import { type ToZodObject } from '../utils/zod.js';
 
+import {
+  LogtoAcr,
+  requestedAuthenticationContextGuard,
+  type RequestedAuthenticationContext,
+} from './authentication-context.js';
+import { InteractionEvent } from './interaction-event.js';
 import type {
   EmailVerificationCodePayload,
   PhoneVerificationCodePayload,
@@ -19,16 +25,9 @@ import {
   emailVerificationCodePayloadGuard,
   phoneVerificationCodePayloadGuard,
 } from './verification-code.js';
+import { VerificationType } from './verification-records/verification-type.js';
 
-/**
- * User interaction events defined in Logto RFC 0004.
- * @see {@link https://github.com/logto-io/rfcs | Logto RFCs} for more information.
- */
-export enum InteractionEvent {
-  SignIn = 'SignIn',
-  Register = 'Register',
-  ForgotPassword = 'ForgotPassword',
-}
+export { eventGuard, InteractionEvent } from './interaction-event.js';
 
 export type VerificationIdentifier = {
   type: SignInIdentifier | AdditionalIdentifier;
@@ -75,6 +74,29 @@ export const verificationCodeIdentifierGuard = z.discriminatedUnion('type', [
   }),
 ]) satisfies z.ZodType<VerificationCodeIdentifier>;
 
+/**
+ * The subject-bound verification code identifier: the type alone. Accepted once the interaction
+ * carries a subject; core fills the value from that user's primary email / phone. A present
+ * `value` is rejected so a malformed full identifier is never mistaken for this shape.
+ */
+export type SubjectVerificationCodeIdentifier = {
+  type: VerificationCodeSignInIdentifier;
+  value?: undefined;
+};
+export const subjectVerificationCodeIdentifierGuard = z.object({
+  type: z.enum([SignInIdentifier.Email, SignInIdentifier.Phone]),
+  value: z.undefined(),
+}) satisfies ToZodObject<SubjectVerificationCodeIdentifier>;
+
+/** The full identifier, or the subject-bound shape. */
+export type VerificationCodeIdentifierPayload =
+  | VerificationCodeIdentifier
+  | SubjectVerificationCodeIdentifier;
+export const verificationCodeIdentifierPayloadGuard = z.union([
+  verificationCodeIdentifierGuard,
+  subjectVerificationCodeIdentifierGuard,
+]) satisfies z.ZodType<VerificationCodeIdentifierPayload>;
+
 // REMARK: API payload guard
 
 /** Payload type for `POST /api/experience/verification/{social|sso}/:connectorId/authorization-uri`. */
@@ -115,6 +137,24 @@ export const passwordVerificationPayloadGuard = z.object({
   identifier: interactionIdentifierGuard,
   password: z.string().min(1),
 }) satisfies ToZodObject<PasswordVerificationPayload>;
+
+/**
+ * The subject-bound password payload: the password alone. Accepted only when the interaction
+ * carries a subject; the password is then verified against that user's credential.
+ */
+export type SubjectPasswordVerificationPayload = {
+  identifier?: undefined;
+  password: string;
+};
+export const subjectPasswordVerificationPayloadGuard = z.object({
+  identifier: z.undefined(),
+  password: z.string().min(1),
+}) satisfies ToZodObject<SubjectPasswordVerificationPayload>;
+
+/** The full password payload, or the subject-bound shape. */
+export type PasswordVerificationRequestBody =
+  | PasswordVerificationPayload
+  | SubjectPasswordVerificationPayload;
 
 /** Payload type for `POST /api/experience/verification/totp/verify`. */
 export type TotpVerificationVerifyPayload = {
@@ -271,8 +311,6 @@ export const socialPhonePayloadGuard = z.object({
 
 export type SocialPhonePayload = z.infer<typeof socialPhonePayloadGuard>;
 
-export const eventGuard = z.nativeEnum(InteractionEvent);
-
 export const identifierPayloadGuard = z.union([
   usernamePasswordPayloadGuard,
   emailPasswordPayloadGuard,
@@ -312,6 +350,57 @@ export enum MissingProfile {
   emailOrPhone = 'emailOrPhone',
   extraProfile = 'extraProfile',
 }
+
+/** A social or enterprise SSO connector linked to the pinned user that can serve as subject proof. */
+export type SubjectProofConnector = {
+  type: 'social' | 'sso';
+  connectorId: string;
+};
+
+/**
+ * The masked primary identifiers of the pinned user. Only the masked values ever leave the
+ * server: the step-up UI shows them as hints and never supplies a raw identifier.
+ */
+export type MaskedIdentifiers = {
+  email?: string;
+  phone?: string;
+};
+
+/**
+ * The authentication context `GET /api/experience/interaction` exposes when the interaction was
+ * created from a login prompt that carries requested `acr_values`. The requested part is copied
+ * verbatim from the prompt details at creation and never mutated; the lists are evaluated on
+ * every read from the pinned user's enrolled methods and the context the interaction achieved so
+ * far, and are never persisted, so a factor change during the interaction's lifetime is reflected.
+ */
+export type InteractionAuthenticationContext = RequestedAuthenticationContext & {
+  /**
+   * The class the interaction pursues, computed on every read and never persisted: the first
+   * requested class the subject can reach, or the first requested one when none is reachable.
+   * Absent while no subject is known.
+   */
+  selectedAcr?: LogtoAcr;
+  /** The methods that can still contribute to the selected class from where the interaction stands. */
+  availableMethods: VerificationType[];
+  /** The first factors the user may establish under a fresh subject proof; `[]` until enrollment lands. */
+  establishableMethods: MissingProfile[];
+  /** The MFA factors the user may enroll after a fresh first factor; `[]` until enrollment lands. */
+  enrollableFactors: MfaFactor[];
+  /** The linked connectors that can serve as subject proof in pure step-up; `[]` until enrollment lands. */
+  subjectProofConnectors: SubjectProofConnector[];
+  maskedIdentifiers: MaskedIdentifiers;
+};
+
+export const interactionAuthenticationContextGuard = requestedAuthenticationContextGuard.extend({
+  selectedAcr: z.nativeEnum(LogtoAcr).optional(),
+  availableMethods: z.nativeEnum(VerificationType).array(),
+  establishableMethods: z.nativeEnum(MissingProfile).array(),
+  enrollableFactors: z.nativeEnum(MfaFactor).array(),
+  subjectProofConnectors: z
+    .object({ type: z.enum(['social', 'sso']), connectorId: z.string() })
+    .array(),
+  maskedIdentifiers: z.object({ email: z.string().optional(), phone: z.string().optional() }),
+}) satisfies ToZodObject<InteractionAuthenticationContext>;
 
 export const bindTotpPayloadGuard = z.object({
   // Unlike identifier payload which has indicator like "email",

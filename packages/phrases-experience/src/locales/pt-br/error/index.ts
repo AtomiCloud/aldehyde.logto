@@ -34,14 +34,29 @@ const error = {
   invalid_link: 'Link inválido',
   invalid_link_description: 'Seu token de uso único pode ter expirado ou não é mais válido.',
   captcha_verification_failed: 'Falha na verificação do captcha.',
+  send_verification_code_failed:
+    'Falha ao enviar o código de verificação. Tente novamente mais tarde.',
+  send_verification_code_failed_use_password:
+    'Falha ao enviar o código de verificação. Em vez disso, faça login com sua senha.',
   terms_acceptance_required: 'Aceitação dos termos obrigatória',
   terms_acceptance_required_description: 'Você deve aceitar os termos para continuar.',
   something_went_wrong: 'Algo deu errado',
+  account_suspended: 'Conta suspensa',
+  account_suspended_description:
+    'Esta conta foi suspensa. Entre em contato com o administrador para obter ajuda.',
   access_denied: 'Acesso negado',
   application_access_denied:
     'Você não tem permissão para acessar este aplicativo.\nEntre em contato com seu administrador para obter ajuda.',
   feature_not_enabled:
     'Você não tem permissão para acessar esse recurso. Entre em contato com seu administrador para obter ajuda.',
+  wallet_not_found:
+    'Nenhuma carteira Ethereum detectada. Instale uma extensão de carteira no navegador e tente novamente.',
+  wallet_not_supported:
+    'O login com carteira só é compatível com um navegador que tenha uma extensão de carteira instalada.',
+  wallet_request_rejected: 'A solicitação da carteira foi rejeitada. Tente novamente.',
+  wallet_unsupported_chain:
+    'Sua carteira está conectada a uma rede não compatível. Troque de rede e tente novamente.',
+  wallet_signature_invalid: 'A assinatura da carteira é inválida ou expirou. Tente novamente.',
 };
 
 export default Object.freeze(error);

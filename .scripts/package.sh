@@ -49,4 +49,7 @@ fi
 
 echo Tar the package
 cd ..
-tar -czf /tmp/logto.tar.gz logto
+# Aldehyde fork: the checkout folder is not always named `logto` (the fork CI checks out
+# into `aldehyde.logto`); archive it under the name the integration-test action unpacks.
+dir_name="$(basename "${OLDPWD}")"
+tar -czf /tmp/logto.tar.gz --transform "flags=r;s|^${dir_name}|logto|" "${dir_name}"

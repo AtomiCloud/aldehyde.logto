@@ -9,6 +9,7 @@ import type {
   PartialColor,
   SignInExperience,
   SsoConnectorMetadata,
+  SupportedSsoConnector,
 } from '@logto/schemas';
 import { adminTenantId, ConnectorType, ForgotPasswordMethod, TenantTag } from '@logto/schemas';
 import { deduplicate, trySafe, type Nullable } from '@silverhand/essentials';
@@ -20,6 +21,7 @@ import RequestError from '#src/errors/RequestError/index.js';
 import type { ConnectorLibrary } from '#src/libraries/connector.js';
 import { resolveSignUpCustomProfileFields } from '#src/libraries/custom-profile-fields/utils.js';
 import type { SsoConnectorLibrary } from '#src/libraries/sso-connector.js';
+import type { SubscriptionLibrary } from '#src/libraries/subscription.js';
 import { ssoConnectorFactories } from '#src/sso/index.js';
 import type Queries from '#src/tenants/Queries.js';
 import assertThat from '#src/utils/assert-that.js';
@@ -53,12 +55,36 @@ export const getForgotPasswordAvailability = (
 
 type SignInExperienceOverride = Partial<Omit<SignInExperience, 'color'> & { color: PartialColor }>;
 
+/**
+ * Build the SSO connector data exposed to the experience client. Tenant branding is only included
+ * when `withBranding` is true, so callers can gate it behind a domain match or the sign-in
+ * experience's public-visibility setting.
+ */
+export const buildSsoConnectorMetadata = (
+  { id, providerName, branding }: SupportedSsoConnector,
+  locale: string,
+  withBranding: boolean
+): SsoConnectorMetadata => {
+  const { name, logo, logoDark } = ssoConnectorFactories[providerName];
+
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty string is not a valid locale
+  const providerNameInLocale = (isKeyOfI18nPhrases(locale, name) && name[locale]) || name.en;
+
+  return {
+    id,
+    connectorName: (withBranding ? branding.displayName : undefined) ?? providerNameInLocale,
+    logo: (withBranding ? branding.logo : undefined) ?? logo,
+    darkLogo: (withBranding ? branding.darkLogo : undefined) ?? logoDark,
+  };
+};
+
 export const createSignInExperienceLibrary = (
   tenantId: string,
   queries: Queries,
   { getLogtoConnectors }: ConnectorLibrary,
   { getAvailableSsoConnectors }: SsoConnectorLibrary,
-  wellKnownCache: WellKnownCache
+  wellKnownCache: WellKnownCache,
+  subscription: SubscriptionLibrary
 ) => {
   const {
     tenants: { findTenantMetadataById },
@@ -100,24 +126,15 @@ export const createSignInExperienceLibrary = (
     });
   };
 
-  const getActiveSsoConnectors = async (locale: string): Promise<SsoConnectorMetadata[]> => {
+  const getActiveSsoConnectors = async (
+    locale: string,
+    withBranding: boolean
+  ): Promise<SsoConnectorMetadata[]> => {
     const ssoConnectors = await getAvailableSsoConnectors();
 
-    return ssoConnectors.map(({ providerName, id, branding }): SsoConnectorMetadata => {
-      const factory = ssoConnectorFactories[providerName];
-      const { name, logo, logoDark } = factory;
-
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- empty string is not a valid locale
-      const providerNameInLocale = (isKeyOfI18nPhrases(locale, name) && name[locale]) || name.en;
-
-      return {
-        id,
-        // Use the provider name as the connector name if the branding displayName is not provided
-        connectorName: branding.displayName ?? providerNameInLocale,
-        logo: branding.logo ?? logo,
-        darkLogo: branding.darkLogo ?? logoDark,
-      };
-    });
+    return ssoConnectors.map((connector) =>
+      buildSsoConnectorMetadata(connector, locale, withBranding)
+    );
   };
 
   /**
@@ -217,7 +234,13 @@ export const createSignInExperienceLibrary = (
       ...(type === 'RecaptchaEnterprise' &&
         'mode' in provider.config &&
         provider.config.mode && { mode: provider.config.mode }),
+      ...(type === 'Cap' && { endpoint: provider.config.endpoint }),
     };
+  };
+
+  const isHideLogtoBrandingGrantedByLicense = async () => {
+    const { quota } = await subscription.getSelfHostedSubscription();
+    return quota.hideLogtoBranding;
   };
 
   const getFullSignInExperience = async ({
@@ -247,7 +270,7 @@ export const createSignInExperienceLibrary = (
 
     // Always return empty array if single-sign-on is disabled
     const ssoConnectors = signInExperience.singleSignOnEnabled
-      ? await getActiveSsoConnectors(locale)
+      ? await getActiveSsoConnectors(locale, signInExperience.ssoBrandingBeforeEmailMatch)
       : [];
 
     const socialConnectors = signInExperience.socialSignInConnectorTargets.reduce<
@@ -323,14 +346,29 @@ export const createSignInExperienceLibrary = (
       signInExperience.signUpProfileFields
     );
 
+    const {
+      emailBlocklistPolicy: _emailBlocklistPolicy,
+      forgotPasswordMethods: _forgotPasswordMethods,
+      ssoBrandingBeforeEmailMatch: _ssoBrandingBeforeEmailMatch,
+      crossOriginOpenerPolicy: _crossOriginOpenerPolicy,
+      ...publicSignInExperience
+    } = deepmerge<SignInExperience, SignInExperienceOverride>(
+      deepmerge<SignInExperience, SignInExperienceOverride>(signInExperience, appSignInExperience),
+      organizationOverride
+    );
+
+    /**
+     * Outside Cloud, hiding the Logto branding is a license entitlement that is only checked when the
+     * setting is written. Mask it here as well, so the branding comes back once the license expires
+     * or is removed, and a saved value applies again if the license is reinstalled.
+     */
+    const hideLogtoBranding =
+      publicSignInExperience.hideLogtoBranding &&
+      (EnvSet.values.isCloud || (await isHideLogtoBrandingGrantedByLicense()));
+
     return {
-      ...deepmerge<SignInExperience, SignInExperienceOverride>(
-        deepmerge<SignInExperience, SignInExperienceOverride>(
-          signInExperience,
-          appSignInExperience
-        ),
-        organizationOverride
-      ),
+      ...publicSignInExperience,
+      hideLogtoBranding,
       socialConnectors,
       ssoConnectors,
       forgotPassword: getForgotPassword(),

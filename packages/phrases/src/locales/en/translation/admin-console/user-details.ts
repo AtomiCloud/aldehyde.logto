@@ -73,6 +73,9 @@ const user_details = {
   },
   mfa: {
     field_name: 'Multi-factor authentication',
+    require_mfa: 'Require MFA setup',
+    require_mfa_description:
+      'This user must set up at least one MFA factor before they can complete sign-in. They cannot skip the setup.',
     field_description: 'This user has enabled 2-step verification factors.',
     name_column: 'Multi-Factor',
     field_description_empty: 'This user has not enabled 2-step verification factors.',
@@ -96,6 +99,11 @@ const user_details = {
     'Are you sure you want to reactivate this user? Doing so will permit any sign-in attempts for this user.',
   reactivate_action: 'Reactivate',
   user_reactivated: 'User has been reactivated.',
+  unlock_user: 'Unlock user',
+  unlock_user_reminder:
+    'Are you sure you want to unlock this user? This will clear all lockouts caused by failed sign-in and security verification attempts. Only unlock manually if you’ve confirmed the user’s identity and ensured no unauthorized access attempts.',
+  unlock_action: 'Unlock',
+  user_unlocked: 'User has been unlocked.',
   roles: {
     name_column: 'User role',
     description_column: 'Description',
@@ -181,7 +189,7 @@ const user_details = {
     access_created_at_column: 'Access created at',
     revoke_access_title: 'Revoke access?',
     revoke_access_description:
-      "This will revoke the app's access to this user's account across devices. The user must reauthorize to restore access.",
+      "This will revoke the app's access to this user's account across devices. The user must reauthorize to restore access. Previously issued access tokens may remain valid until they expire.",
   },
   connections: {
     title: 'Connection',

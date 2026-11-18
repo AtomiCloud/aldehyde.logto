@@ -50,8 +50,13 @@ export const comingSoonSkuQuotaKeys: Array<keyof LogtoSkuQuota> = [];
  */
 export const hiddenQuotaDiffUsageKeys: Array<keyof LogtoSkuQuota> = [
   'tokenLimit',
-  // Keep inline hooks hidden from the plan quota UI until it is ready to open after further testing.
-  'inlineHooksEnabled',
+  // Keep Actions hidden from the plan quota UI until the feature is ready after further testing.
+  'actionsEnabled',
+  // Hosted-email caps are surfaced in Connector details, not the plan quota UI.
+  'hostedEmailLimit',
+  'hostedEmailDailyLimit',
+  // Console SSO quotas belong to the shared Enterprise plan, not individual tenants.
+  'consoleSsoConnectorLimit',
   'scopesPerResourceLimit',
   'userRolesLimit',
   'machineToMachineRolesLimit',

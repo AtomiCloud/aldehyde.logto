@@ -1,19 +1,22 @@
 import type { Application, OidcModelInstance, OidcModelInstancePayload } from '@logto/schemas';
-import { Applications, OidcModelInstances } from '@logto/schemas';
+import { Applications, CimdGrantClientSnapshots, OidcModelInstances } from '@logto/schemas';
+import { ConsoleLog } from '@logto/shared';
 import type { Nullable } from '@silverhand/essentials';
 import { conditional } from '@silverhand/essentials';
-import type { CommonQueryMethods, ValueExpression } from '@silverhand/slonik';
+import type { CommonQueryMethods, SqlSqlToken, ValueExpression } from '@silverhand/slonik';
 import { sql } from '@silverhand/slonik';
+import chalk from 'chalk';
 import { addSeconds, isBefore } from 'date-fns';
 
 import { buildInsertIntoWithPool } from '#src/database/insert-into.js';
-import { convertToIdentifiers, convertToTimestamp } from '#src/utils/sql.js';
+import { conditionalSql, convertToIdentifiers, convertToTimestamp } from '#src/utils/sql.js';
 
 export type WithConsumed<T> = T & { consumed?: boolean };
 export type QueryResult = Pick<OidcModelInstance, 'payload' | 'consumedAt'>;
 
 const { table, fields } = convertToIdentifiers(OidcModelInstances);
 const { table: applicationTable } = convertToIdentifiers(Applications);
+const cimdGrantClientSnapshots = convertToIdentifiers(CimdGrantClientSnapshots, true);
 
 export type ActiveGrantInstance = Pick<OidcModelInstance, 'id' | 'payload' | 'expiresAt'>;
 export type ActiveApplicationGrantInstance = ActiveGrantInstance & {
@@ -30,7 +33,19 @@ const sessionModelName = 'Session';
  */
 // Hard-code this value since 3 seconds is a reasonable number for concurrency and no need for further configuration
 const refreshTokenReuseInterval = 3;
-const revokeInstanceBatchSize = 1000;
+/**
+ * Under row-level security the planner cannot seek by the jsonb key, so each batch scans the
+ * tenant's rows for the model up to its matches and the final empty batch scans them all; a
+ * smaller batch only repeats that scan. 2000 keeps each statement's delete work at a level
+ * production has carried; revisit once the lookup no longer goes through jsonb.
+ */
+const revokeInstanceBatchSize = 2000;
+/** Safety valve so a revocation request stays bounded even for pathological instance counts. */
+const maxRevokeInstanceBatches = 1000;
+/** Fixed-length array to drive the bounded batch loop without a mutable counter. */
+const revokeInstanceBatchIterations = Array.from({ length: maxRevokeInstanceBatches });
+
+const consoleLog = new ConsoleLog(chalk.magenta('query'));
 
 const isConsumed = (modelName: string, consumedAt: Nullable<number>): boolean => {
   if (!consumedAt) {
@@ -81,8 +96,9 @@ export const createOidcModelInstanceQueries = (pool: CommonQueryMethods) => {
   };
 
   /**
-   * This function is designed to query by indexed JSONB fields (e.g. `uid` and `userCode`)
-   *  to leverage the expression index for better performance.
+   * Finds an instance by its `uid` or `userCode` payload key. Under row-level security the jsonb
+   * comparison is a filter on the `(tenant_id, model_name)` index prefix; `payload_uid` and
+   * `payload_user_code` hold the same values for an index seek.
    *
    * @see findPayloadByUid
    * @see findPayloadByUserCode
@@ -129,10 +145,9 @@ export const createOidcModelInstanceQueries = (pool: CommonQueryMethods) => {
 
   /**
    * @deprecated
-   * This dynamic JSONB key query shape may prevent expression-index
-   *  usage with prepared generic plans. Keep it as a backup/reference path only.
+   * Keep it as a backup/reference path only.
    *
-   * Use `findPayloadByUid` or `findPayloadByUserCode` instead for indexed queries.
+   * Use `findPayloadByUid` or `findPayloadByUserCode` instead.
    */
   const findPayloadByPayloadField = async <
     T extends ValueExpression,
@@ -164,13 +179,22 @@ export const createOidcModelInstanceQueries = (pool: CommonQueryMethods) => {
     return results[0] ? convertResult(results[0], modelName) : undefined;
   };
 
+  /**
+   * Resolves `true` only for the call that consumes a single-use instance, and `false` when it is
+   * already consumed or does not exist. A refresh token stays reusable within
+   * `refreshTokenReuseInterval`, so every call re-stamps it and resolves `true`.
+   */
   const consumeInstanceById = async (modelName: string, id: string) => {
-    await pool.query(sql`
+    const isRefreshToken = modelName === 'RefreshToken';
+    const { rowCount } = await pool.query(sql`
       update ${table}
       set ${fields.consumedAt}=${convertToTimestamp()}
       where ${fields.modelName}=${modelName}
       and ${fields.id}=${id}
+      ${conditionalSql(!isRefreshToken, () => sql`and ${fields.consumedAt} is null`)}
     `);
+
+    return isRefreshToken || rowCount > 0;
   };
 
   const destroyInstanceById = async (modelName: string, id: string) => {
@@ -181,36 +205,58 @@ export const createOidcModelInstanceQueries = (pool: CommonQueryMethods) => {
     `);
   };
 
-  const revokeInstanceByGrantId = async (modelName: string, grantId: string) => {
-    // Keep deleting bounded batches until the revoke query no longer finds matches.
-    for (;;) {
-      // Revocation batches must run serially to keep each delete bounded.
-      // eslint-disable-next-line no-await-in-loop
+  /**
+   * Delete matching instances in bounded batches until none remain, so each statement's delete
+   * work stays bounded.
+   *
+   * @param target - Human-readable principal for the cap log, e.g. `accountId <userId>`.
+   * @param condition - Must include the payload key-existence clause matching the partial index
+   * predicate, so the planner can prove the partial index and each batch scans only the tenant's
+   * rows for the model that carry the key.
+   */
+  const revokeInstancesInBatches = async (
+    modelName: string,
+    target: string,
+    condition: SqlSqlToken
+  ) => {
+    for (const _ of revokeInstanceBatchIterations) {
+      // eslint-disable-next-line no-await-in-loop -- revocation batches must run serially to keep each delete bounded
       const { rowCount } = await pool.query(sql`
         delete from ${table}
         where ${fields.id} in (
           select ${fields.id}
           from ${table}
           where ${fields.modelName}=${modelName}
-          and ${fields.payload} ? 'grantId'
-          and ${fields.payload}->>'grantId'=${grantId}
+          and ${condition}
           limit ${revokeInstanceBatchSize}
         )
       `);
 
-      if (rowCount === 0) {
+      if (!rowCount) {
         return;
       }
     }
+
+    consoleLog.error(
+      `Revoking ${modelName} instances for ${target} did not finish within ${maxRevokeInstanceBatches} batches; remaining instances are left for a retry.`
+    );
   };
 
-  const revokeInstanceByUserId = async (modelName: string, userId: string) => {
-    await pool.query(sql`
-      delete from ${table}
-      where ${fields.modelName}=${modelName}
-      and ${fields.payload}->>'accountId'=${userId}
-    `);
-  };
+  const revokeInstanceByGrantId = async (modelName: string, grantId: string) =>
+    revokeInstancesInBatches(
+      modelName,
+      `grantId ${grantId}`,
+      sql`${fields.payload} ? 'grantId'
+          and ${fields.payload}->>'grantId'=${grantId}`
+    );
+
+  const revokeInstanceByUserId = async (modelName: string, userId: string) =>
+    revokeInstancesInBatches(
+      modelName,
+      `accountId ${userId}`,
+      sql`${fields.payload} ? 'accountId'
+          and ${fields.payload}->>'accountId'=${userId}`
+    );
 
   const findUserActiveApplicationGrants = async (
     userId: string,
@@ -263,6 +309,41 @@ export const createOidcModelInstanceQueries = (pool: CommonQueryMethods) => {
     `);
   };
 
+  /**
+   * Active grants of CIMD (client ID metadata document) clients, shaped like the registered
+   * application grants. They are URL identities without an `applications` row, so
+   * `findUserActiveApplicationGrants` cannot see them; a grant is a CIMD grant exactly when a
+   * consent-time snapshot row exists for it, and the snapshot carries the approved display data.
+   *
+   * The identifier URL stands in for a missing name: `client_name` is optional in the metadata
+   * document, and the snapshot write normalizes an empty one to null.
+   */
+  const findUserActiveCimdGrants = async (userId: string) => {
+    /** The snapshot table also has a `tenant_id` column, so this side of the join must qualify. */
+    const oidcModelInstanceTenantId = sql.identifier([
+      OidcModelInstances.table,
+      OidcModelInstances.fields.tenantId,
+    ]);
+
+    return pool.any<ActiveApplicationGrantInstance>(sql`
+      select ${fields.id}, ${fields.payload}, ${fields.expiresAt},
+        json_build_object(
+          'id', ${cimdGrantClientSnapshots.fields.clientId},
+          'name', coalesce(
+            ${cimdGrantClientSnapshots.fields.name},
+            ${cimdGrantClientSnapshots.fields.clientId}
+          )
+        ) as application
+      from ${table}
+      inner join ${cimdGrantClientSnapshots.table}
+        on ${cimdGrantClientSnapshots.fields.tenantId}=${oidcModelInstanceTenantId}
+        and ${cimdGrantClientSnapshots.fields.grantId}=${fields.id}
+      where ${fields.modelName}='Grant'
+        and ${fields.payload}->>'accountId'=${userId}
+        and ${fields.expiresAt} > ${convertToTimestamp()}
+    `);
+  };
+
   const findUserActiveGrantsByClientId = async (userId: string, clientId: string) => {
     return pool.any<ActiveGrantInstance>(sql`
       select ${fields.id}, ${fields.payload}, ${fields.expiresAt}
@@ -303,6 +384,7 @@ export const createOidcModelInstanceQueries = (pool: CommonQueryMethods) => {
     revokeInstanceByGrantId,
     revokeInstanceByUserId,
     findUserActiveApplicationGrants,
+    findUserActiveCimdGrants,
     findUserActiveGrantsByClientId,
     findUserActiveSessionUidByGrantId,
   };

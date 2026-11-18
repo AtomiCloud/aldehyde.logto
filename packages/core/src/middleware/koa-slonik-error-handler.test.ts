@@ -4,6 +4,7 @@ import {
   SlonikError,
   UniqueIntegrityConstraintViolationError,
 } from '@silverhand/slonik';
+import { DatabaseError } from 'pg-protocol';
 
 import RequestError from '#src/errors/RequestError/index.js';
 import { DeletionError, InsertionError, UpdateError } from '#src/errors/SlonikError/index.js';
@@ -12,6 +13,13 @@ import { createContextWithRouteParameters } from '#src/utils/test-utils.js';
 import koaSlonikErrorHandler from './koa-slonik-error-handler.js';
 
 const { jest } = import.meta;
+
+class TestDatabaseError extends DatabaseError {
+  constructor(code: string, message: string) {
+    super(message, 0, 'error');
+    this.code = code;
+  }
+}
 
 describe('koaSlonikErrorHandler middleware', () => {
   const next = jest.fn();
@@ -39,6 +47,24 @@ describe('koaSlonikErrorHandler middleware', () => {
     });
 
     await expect(koaSlonikErrorHandler()(ctx, next)).rejects.toMatchError(error);
+  });
+
+  it.each([
+    ['22P05', 'unsupported Unicode escape sequence'],
+    ['22003', 'value overflows numeric format'],
+  ])('should map DatabaseError %s to invalid request input', async (code, message) => {
+    const error = new TestDatabaseError(code, message);
+
+    next.mockImplementationOnce(() => {
+      throw error;
+    });
+
+    await expect(koaSlonikErrorHandler()(ctx, next)).rejects.toMatchError(
+      new RequestError({
+        code: 'request.invalid_input',
+        status: 400,
+      })
+    );
   });
 
   it('Insertion Error', async () => {
@@ -100,6 +126,20 @@ describe('koaSlonikErrorHandler middleware', () => {
         code: 'entity.not_found',
         status: 404,
       })
+    );
+  });
+
+  it.each([
+    ['users_pkey', 'user.id_already_in_use'],
+    ['users__username', 'user.username_already_in_use'],
+    ['users__primary_email', 'user.email_already_in_use'],
+    ['users__primary_phone', 'user.phone_already_in_use'],
+  ] as const)('should map %s to %s', async (constraint, code) => {
+    const error = new UniqueIntegrityConstraintViolationError(new Error(' '), constraint);
+    next.mockRejectedValueOnce(error);
+
+    await expect(koaSlonikErrorHandler()(ctx, next)).rejects.toMatchError(
+      new RequestError({ code, status: 422 })
     );
   });
 

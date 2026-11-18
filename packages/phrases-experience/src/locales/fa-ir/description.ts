@@ -36,6 +36,8 @@ const description = {
   reset_password: 'بازنشانی رمز عبور',
   reset_password_description:
     '{{types, list(type: disjunction;)}} مرتبط با حساب خود را وارد کنید تا کد تأیید برای بازنشانی رمز عبور ارسال شود.',
+  reset_password_magic_link_description:
+    'برای ادامه بازنشانی گذرواژه، آدرس ایمیل مرتبط با حساب خود را وارد کنید.',
   new_password: 'رمز عبور جدید',
   set_password: 'تنظیم رمز عبور',
   password_changed: 'رمز عبور تغییر یافت',
@@ -101,6 +103,8 @@ const description = {
     'سازمان شما ورود یکپارچه (SSO) را برای حساب ایمیل {{email}} فعال کرده است. می‌توانید با ارائه‌دهندگان SSO زیر ادامه دهید.',
   single_sign_on_enabled: 'ورود یکپارچه برای این حساب فعال است',
   authorize_title: 'مجوز دادن به {{name}}',
+  unregistered_client_notice:
+    'این برنامه توسط <hostname>{{host}}</hostname> خوداظهاری شده است، از جمله نام و لوگوی آن. لطفاً پیش از ادامه، نام میزبان را بررسی کنید.',
   request_permission: '{{name}} درخواست دسترسی به موارد زیر را دارد:',
   grant_organization_access: 'اعطای دسترسی به سازمان:',
   authorize_personal_data_usage: 'مجوز استفاده از اطلاعات شخصی شما:',
@@ -126,6 +130,8 @@ const description = {
   switch_account_title: 'در حال حاضر با {{account}} وارد شده‌اید',
   switch_account_description:
     'برای ادامه، از حساب فعلی خارج می‌شوید و به‌طور خودکار به حساب جدید تغییر می‌کنید.',
+  continue_to_app_title: 'بازگشت به برنامه',
+  continue_to_app_description: 'برای بازگشت به برنامه ادامه دهید.',
   about_yourself: 'درباره خودتان بگویید',
   verify_identity: 'هویت خود را تأیید کنید',
   choose_verification_method: 'روش ورود خود را انتخاب کنید',
@@ -138,6 +144,7 @@ const description = {
     phone_verification_code: 'کد تأیید تلفن',
     verification_code_description: 'ارسال به {{target}}',
   },
+  select_wallet: 'یک کیف پول انتخاب کنید',
 };
 
 export default Object.freeze(description);

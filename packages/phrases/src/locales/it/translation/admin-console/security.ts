@@ -36,6 +36,16 @@ const security = {
       description:
         "Alternativa intelligente di CAPTCHA di Cloudflare che offre protezione dai bot non invasiva assicurando un'esperienza utente senza puzzle visivi.",
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'CAPTCHA open source e self-hosted basato su proof-of-work, senza puzzle visivi né servizi di terze parti, ideale per le regioni in cui altri servizi CAPTCHA non sono raggiungibili.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'CAPTCHA adattivo di GeeTest con sfide localizzate e buone prestazioni nella Cina continentale.',
+    },
   },
   captcha_details: {
     back_to_security: 'Torna alla sicurezza',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com (predefinito) o recaptcha.net',
     recaptcha_key_id: 'ID chiave reCAPTCHA',
     recaptcha_api_key: 'Chiave API del progetto',
+    cap_endpoint: 'Endpoint di Cap',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'Questo endpoint usa HTTP, adatto solo allo sviluppo locale. I browser bloccano le richieste HTTP da una pagina di accesso HTTPS e la chiave segreta verrebbe inviata non crittografata. Usa HTTPS in produzione.',
+    geetest_captcha_id: 'ID CAPTCHA',
+    geetest_captcha_key: 'Chiave CAPTCHA',
     deletion_description: 'Sei sicuro di voler eliminare questo fornitore di CAPTCHA?',
     captcha_deleted: 'Fornitore di CAPTCHA eliminato con successo',
     setup_captcha: 'Configura CAPTCHA',
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: 'Casella di controllo',
     mode_notice:
       'La modalità di verifica è definita nelle impostazioni della chiave reCAPTCHA in Google Cloud Console. Per cambiare la modalità qui è necessario un tipo di chiave corrispondente.',
+    score_threshold: 'Soglia del punteggio',
+    score_threshold_description:
+      'I punteggi inferiori alla soglia vengono rifiutati. 0.0 consente tutti, 1.0 solo punteggi perfetti. Il valore predefinito è 0.5.',
+    score_threshold_error: 'La soglia del punteggio deve essere compresa tra 0 e 1.',
   },
   password_policy: {
     password_requirements: 'Requisiti per la password',
@@ -151,23 +171,43 @@ const security = {
     manual_unlock: {
       title: 'Sblocco manuale',
       description:
-        'Sblocca gli utenti immediatamente confermando la loro identità e inserendo il loro identificatore.',
-      unblock_by_identifiers: 'Sblocca tramite identificatore',
+        'Sblocca gli utenti immediatamente confermando la loro identità e inserendo il loro identificatore o ID utente.',
+      unblock_by_identifiers: 'Sblocca tramite identificatore o ID utente',
       modal_description_1:
-        "Un identificatore è stato temporaneamente bloccato a causa di più tentativi di accesso/registrazione falliti. Per proteggere la sicurezza, l'accesso verrà automaticamente ripristinato dopo la durata del blocco.",
+        "Un identificatore o ID utente è stato temporaneamente bloccato a causa di più tentativi di accesso/registrazione o verifica di sicurezza falliti. Per proteggere la sicurezza, l'accesso verrà automaticamente ripristinato dopo la durata del blocco.",
       modal_description_2:
         "Sblocca manualmente solo se hai confermato l'identità dell'utente e assicurato che non vi siano tentativi di accesso non autorizzati.",
-      placeholder: 'Inserisci identificatori (indirizzo email / numero di telefono / nome utente)',
+      placeholder:
+        'Inserisci identificatori o ID utente (indirizzo email / numero di telefono / nome utente / ID utente)',
       confirm_button_text: 'Sblocca adesso',
       success_toast: 'Sbloccato con successo',
-      duplicate_identifier_error: 'Identificatore già aggiunto',
-      empty_identifier_error: 'Inserisci almeno un identificatore',
+      duplicate_identifier_error: 'Identificatore o ID utente già aggiunto',
+      empty_identifier_error: 'Inserisci almeno un identificatore o ID utente',
     },
   },
   blocklist: {
     card_title: 'Lista di blocco email',
     card_description:
       'Prendi il controllo della tua base utenti bloccando indirizzi email ad alto rischio o indesiderati.',
+    custom_email_allowlist: {
+      title: 'Consenti indirizzi email personalizzati',
+      description:
+        'Aggiungi regole per consentire solo domini email, indirizzi email o pattern con caratteri jolly specifici per nuove registrazioni e nuove email collegate. Esempi: bar@example.com, @example.com, foo*@example.com, *@example.com. I domini gmail.com e googlemail.com sono considerati equivalenti e i punti nella parte locale vengono ignorati, quindi foo.bar@gmail.com corrisponde a foobar@googlemail.com.',
+      placeholder: 'Inserisci un indirizzo email, un dominio o un pattern con caratteri jolly',
+      duplicate_error: 'Indirizzo email, dominio o pattern email con caratteri jolly già aggiunto',
+      invalid_format_error:
+        'Deve essere un indirizzo email valido (bar@example.com), un dominio (@example.com) o un pattern email con caratteri jolly (foo*@example.com, *@example.com)',
+      warnings: {
+        identical_entries:
+          'Alcune voci della lista consentita esistono anche nelle regole di blocco. Le email corrispondenti potrebbero comunque essere bloccate.',
+        blocked_exact_email:
+          'Alcune email esatte della lista consentita corrispondono a una regola di blocco. Le email corrispondenti potrebbero comunque essere bloccate.',
+        blocked_subaddressing:
+          'Alcune voci della lista consentita contengono il segno più (+), ma il sottoindirizzamento email è bloccato.',
+        effectively_unusable:
+          'In base a questi controlli, la lista consentita attuale potrebbe non permettere il passaggio di alcuna nuova email.',
+      },
+    },
     disposable_email: {
       title: 'Blocca indirizzi email usa e getta',
       description:
@@ -181,12 +221,12 @@ const security = {
     custom_email_address: {
       title: 'Blocca indirizzi email personalizzati',
       description:
-        "Aggiungi domini email specifici o indirizzi email che non possono registrarsi o collegarsi tramite l'UI.",
-      placeholder:
-        "Inserisci l'indirizzo email o il dominio bloccato (ad es., bar@example.com, @example.com)",
-      duplicate_error: 'Indirizzo email o dominio già aggiunto',
+        "Aggiungi regole per impedire a domini email, indirizzi email o pattern con caratteri jolly specifici di registrarsi o collegarsi tramite l'UI. Esempi: bar@example.com, @example.com, foo*@example.com, *@example.com. I domini gmail.com e googlemail.com sono considerati equivalenti e i punti nella parte locale vengono ignorati, quindi foo.bar@gmail.com corrisponde a foobar@googlemail.com.",
+      placeholder: 'Inserisci un indirizzo email, un dominio o un pattern con caratteri jolly',
+      duplicate_error:
+        'Indirizzo email, dominio o modello di indirizzo email con caratteri jolly già aggiunto',
       invalid_format_error:
-        'Deve essere un indirizzo email valido (bar@example.com) o un dominio (@example.com)',
+        'Deve essere un indirizzo email valido (bar@example.com), un dominio (@example.com) o un modello di indirizzo email con caratteri jolly (foo*@example.com, *@example.com)',
     },
   },
 };

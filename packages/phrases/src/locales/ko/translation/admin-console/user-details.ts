@@ -69,6 +69,9 @@ const user_details = {
   },
   mfa: {
     field_name: '다단계 인증',
+    require_mfa: 'MFA 설정 필수',
+    require_mfa_description:
+      '이 사용자는 로그인을 완료하기 전에 하나 이상의 MFA 요소를 설정해야 하며, 설정을 건너뛸 수 없습니다.',
     field_description: '이 사용자는 2단계 인증 요소를 활성화했습니다.',
     name_column: '다단계 인증',
     field_description_empty: '이 사용자는 2단계 인증 요소를 활성화하지 않았습니다.',
@@ -92,6 +95,11 @@ const user_details = {
     '이 사용자를 다시 활성화하시겠습니까? 이렇게 하면이 사용자에 대한 로그인 시도가 허용됩니다.',
   reactivate_action: '재활성화',
   user_reactivated: '사용자가 재활성화되었습니다.',
+  unlock_user: '사용자 잠금 해제',
+  unlock_user_reminder:
+    '이 사용자의 잠금을 해제하시겠습니까? 로그인 및 보안 인증 실패로 인한 모든 잠금이 해제됩니다. 사용자의 신원을 확인하고 비인가 접근 시도가 없음을 확인한 경우에만 수동으로 잠금을 해제하세요.',
+  unlock_action: '잠금 해제',
+  user_unlocked: '사용자의 잠금이 해제되었습니다.',
   roles: {
     name_column: '사용자 역할',
     description_column: '설명',
@@ -176,7 +184,7 @@ const user_details = {
     access_created_at_column: '접근 권한 부여 시각',
     revoke_access_title: '접근 권한을 취소하시겠습니까?',
     revoke_access_description:
-      '이 작업은 모든 기기에서 이 사용자의 계정에 대한 앱 접근 권한을 취소합니다. 접근 권한을 복구하려면 사용자가 다시 승인해야 합니다.',
+      '이 작업은 모든 기기에서 이 사용자의 계정에 대한 앱 접근 권한을 취소합니다. 접근 권한을 복구하려면 사용자가 다시 승인해야 합니다. 이미 발급된 액세스 토큰은 만료될 때까지 유효할 수 있습니다.',
   },
   connections: {
     title: '연결',

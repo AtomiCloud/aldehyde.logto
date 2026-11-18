@@ -3,7 +3,7 @@ import type {
   AdminConsoleData,
   Application,
   ApplicationsRole,
-  InlineHook,
+  LogtoAction,
   LogtoConfig,
   OidcConfigKey,
   Passcode,
@@ -15,7 +15,7 @@ import type {
 import {
   ApplicationType,
   DomainStatus,
-  LogtoInlineHookKey,
+  LogtoActionKey,
   internalPrefix,
   LogtoJwtTokenKey,
   LogtoOidcConfigKey,
@@ -31,6 +31,7 @@ export * from './domain.js';
 export * from './protected-app.js';
 export * from './sign-in-experience.js';
 export * from './sso.js';
+export * from './trusted-device.js';
 export * from './user.js';
 export * from './captcha.js';
 export * from './custom-profile-fields.js';
@@ -231,7 +232,7 @@ export const mockJwtCustomizerConfigForAccessToken = {
   tenantId: 'fake_tenant',
   key: LogtoJwtTokenKey.AccessToken,
   value: {
-    script: 'console.log("hello world");',
+    script: 'const getCustomJwtClaims = () => ({});',
     environmentVariables: {
       API_KEY: '<api-key>',
     },
@@ -247,18 +248,18 @@ export const mockJwtCustomizerConfigForClientCredentials = {
   tenantId: 'fake_tenant',
   key: LogtoJwtTokenKey.ClientCredentials,
   value: {
-    script: 'console.log("hello world");',
+    script: 'const getCustomJwtClaims = () => ({});',
     environmentVariables: {
       API_KEY: '<api-key>',
     },
   },
 };
 
-export const mockInlineHookConfigForPostSignIn = {
+export const mockActionConfigForPostSignIn = {
   tenantId: 'fake_tenant',
-  key: LogtoInlineHookKey.PostSignIn,
+  key: LogtoActionKey.PostSignIn,
   value: {
-    script: 'const runInlineHook = ({ event }) => ({ action: "updateUser", user: event.user });',
+    script: 'const runAction = ({ event }) => ({ action: "updateUser", user: event.user });',
     environmentVariables: {
       API_KEY: '<api-key>',
     },
@@ -269,16 +270,16 @@ export const mockInlineHookConfigForPostSignIn = {
     },
     enabled: true,
     onExecutionError: 'block',
-  } satisfies InlineHook,
+  } satisfies LogtoAction,
 };
 
-export const mockInlineHookConfigForPostFirstFactorVerification = {
+export const mockActionConfigForPostFirstFactorVerification = {
   tenantId: 'fake_tenant',
-  key: LogtoInlineHookKey.PostFirstFactorVerification,
+  key: LogtoActionKey.PostFirstFactorVerification,
   value: {
     script:
-      'const runInlineHook = ({ event }) => ({ action: "updateUser", user: {}, passwordVerified: true });',
+      'const runAction = ({ event }) => ({ action: "updateUser", user: {}, passwordVerified: true });',
     enabled: false,
     onExecutionError: 'allow',
-  } satisfies InlineHook,
+  } satisfies LogtoAction,
 };

@@ -9,6 +9,9 @@ const auth = {
   require_re_authentication: 'A reautenticação é necessária para executar uma ação protegida.',
   exceed_token_limit:
     'Limite de tokens excedido. Por favor, entre em contato com seu administrador.',
+  third_party_application_forbidden:
+    'Aplicativos de terceiros não podem modificar dados da conta por meio desta API.',
+  read_only_access: 'Esta solicitação não é permitida com acesso somente leitura.',
 };
 
 export default Object.freeze(auth);

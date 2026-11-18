@@ -1,3 +1,4 @@
+import { type AdminConsoleKey } from '@logto/phrases';
 import { Theme } from '@logto/schemas';
 import classNames from 'classnames';
 import { type ReactNode, Suspense, useCallback } from 'react';
@@ -5,7 +6,9 @@ import { type ReactNode, Suspense, useCallback } from 'react';
 import { type Guide, type GuideMetadata } from '@/assets/docs/guides/types';
 import { BetaTag } from '@/components/FeatureTag';
 import Button from '@/ds-components/Button';
+import useCurrentTenantScopes from '@/hooks/use-current-tenant-scopes';
 import useTheme from '@/hooks/use-theme';
+import { dynamicAppGuideId } from '@/types/applications';
 import { onKeyDownHandler } from '@/utils/a11y';
 
 import styles from './index.module.scss';
@@ -24,12 +27,23 @@ type Props = {
   readonly isBeta?: boolean;
 };
 
+const getButtonText = (id: Guide['id'], target: GuideMetadata['target']): AdminConsoleKey => {
+  if (id === dynamicAppGuideId) {
+    return 'general.enable';
+  }
+
+  return target === 'API' ? 'guide.get_started' : 'guide.start_building';
+};
+
 function GuideCard({ data, onClick, hasBorder, hasButton, paywallTag, isBeta }: Props) {
   const { id, Logo, DarkLogo, metadata } = data;
 
   const { target, name, description } = metadata;
-  const buttonText = target === 'API' ? 'guide.get_started' : 'guide.start_building';
+  const buttonText = getButtonText(id, target);
   const theme = useTheme();
+  const {
+    access: { isReadOnly },
+  } = useCurrentTenantScopes();
   const hasTags = Boolean(paywallTag) || Boolean(isBeta);
 
   const handleClick = useCallback(() => {
@@ -71,7 +85,7 @@ function GuideCard({ data, onClick, hasBorder, hasButton, paywallTag, isBeta }: 
           </div>
         </div>
       </div>
-      {hasButton && <Button title={buttonText} size="small" onClick={handleClick} />}
+      {hasButton && !isReadOnly && <Button title={buttonText} size="small" onClick={handleClick} />}
     </div>
   );
 }

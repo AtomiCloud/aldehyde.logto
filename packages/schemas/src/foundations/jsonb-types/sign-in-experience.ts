@@ -270,12 +270,42 @@ export const adaptiveMfaGuard = z.object({
   enabled: z.boolean().optional(),
 }) satisfies ToZodObject<AdaptiveMfa>;
 
+/** Stored tenant-level overrides for MFA trusted-device credentials. */
+export type TrustedDevicePolicy = {
+  enabled?: boolean;
+  durationDays?: number;
+};
+
+/** Default trusted-device policy for newly created sign-in experiences. */
+export const defaultTrustedDevicePolicy = Object.freeze({
+  enabled: false,
+  durationDays: 30,
+}) satisfies Required<TrustedDevicePolicy>;
+
+export const trustedDevicePolicyGuard = z.object({
+  enabled: z.boolean().optional(),
+  durationDays: z.number().int().min(1).max(365).optional(),
+}) satisfies ToZodObject<TrustedDevicePolicy>;
+
 export const customUiAssetsGuard = z.object({
   id: z.string(),
   createdAt: z.number(),
 });
 
 export type CustomUiAssets = z.infer<typeof customUiAssetsGuard>;
+
+/** The `Cross-Origin-Opener-Policy` values a tenant can set for its custom sign-in UI. */
+export enum CrossOriginOpenerPolicy {
+  /**
+   * Sends no header, so a sign-in page opened as a popup from a cross-origin app keeps its
+   * `window.opener`.
+   */
+  UnsafeNone = 'unsafe-none',
+  SameOriginAllowPopups = 'same-origin-allow-popups',
+  SameOrigin = 'same-origin',
+}
+
+export const crossOriginOpenerPolicyGuard = z.nativeEnum(CrossOriginOpenerPolicy);
 
 export const captchaPolicyGuard = z.object({
   enabled: z.boolean().optional(),
@@ -327,13 +357,25 @@ export type EmailBlocklistPolicy = {
   blockDisposableAddresses?: boolean;
   blockSubaddressing?: boolean;
   /**
-   * Custom blocklist of email addresses or domains.
+   * Custom allowlist of email addresses, domains, or wildcard email address patterns.
+   *
+   * The matching semantics are the same as {@link customBlocklist}.
+   */
+  customAllowlist?: string[];
+  /**
+   * Custom blocklist of email addresses, domains, or wildcard email address patterns.
    *
    * @example
    * Email address: abc@xyx.com
    *
    * @example
    * Domain name: @xyz.com
+   *
+   * @example
+   * Wildcard email address pattern: foo*@example.com
+   *
+   * @example
+   * Wildcard domain pattern: @*.example.com
    */
   customBlocklist?: string[];
 };
@@ -341,6 +383,7 @@ export type EmailBlocklistPolicy = {
 export const emailBlocklistPolicyGuard = z.object({
   blockDisposableAddresses: z.boolean().optional(),
   blockSubaddressing: z.boolean().optional(),
+  customAllowlist: z.string().array().optional(),
   customBlocklist: z.string().array().optional(),
 }) satisfies ToZodObject<EmailBlocklistPolicy>;
 

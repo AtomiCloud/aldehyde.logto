@@ -10,6 +10,8 @@ const user_scopes = {
     'urn:logto:scope:organization_roles': '조직 역할',
     address: '주소',
     'urn:logto:scope:sessions': '활성 세션',
+    'urn:logto:scope:trusted_devices': '신뢰할 수 있는 기기',
+    'urn:logto:scope:personal_access_tokens': '개인 액세스 토큰',
   },
 };
 

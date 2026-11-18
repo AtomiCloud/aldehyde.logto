@@ -39,6 +39,8 @@ const jwt_claims = {
   test_tab: 'Test bağlamı',
   jwt_claims_description:
     "Varsayılan iddialar JWT'de otomatik olarak dahil edilir ve geçersiz kılınabilir.",
+  reserved_claims_description:
+    '`acr`, `amr` ve `auth_time` kullanıcı erişim belgelerinde ayrılmıştır: Logto bunları her zaman kendisi türetir ve bu anahtarları kullanan özel iddiaları yok sayar.',
   user_data: {
     title: 'Kullanıcı verisi',
     subtitle:
@@ -103,6 +105,11 @@ const jwt_claims = {
     subtitle: 'Test için sahte belge ve kullanıcı verilerini ayarlayın.',
     run_button: 'Testi Çalıştır',
     result_title: 'Test sonucu',
+  },
+  sandbox_warning: {
+    title: 'Komut dosyaları sunucu ayrıcalıklarıyla çalışır',
+    description:
+      'Kendi barındırılan Logto’da bu komut dosyası, Logto’nun kendisiyle aynı ortamda çalışır: sunucu ortam değişkenlerini okuyabilir ve iç ağınızdaki hizmetlere erişebilir. Sandbox’lanmamıştır. Bu sayfaya yalnızca sunucuya erişim vereceğiniz kişilere erişim verin.',
   },
   form_error: {
     invalid_json: 'Geçersiz JSON biçimi',

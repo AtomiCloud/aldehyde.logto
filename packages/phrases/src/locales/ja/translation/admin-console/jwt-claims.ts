@@ -38,6 +38,8 @@ const jwt_claims = {
   error_handling_tab: 'エラーハンドリング',
   test_tab: 'コンテキストをテスト',
   jwt_claims_description: 'デフォルトクレームはJWTに自動的に含まれ、オーバーライドできません。',
+  reserved_claims_description:
+    '`acr`、`amr`、`auth_time` はユーザーアクセストークンでは予約済みです。Logto が常にこれらを導出し、これらのキーを使用するカスタムクレームは無視されます。',
   user_data: {
     title: 'ユーザーデータ',
     subtitle: '`context.user`入力パラメータを使用して重要なユーザー情報を提供します。',
@@ -99,6 +101,11 @@ const jwt_claims = {
     subtitle: 'テストのためにモックトークンとユーザーデータを調整します。',
     run_button: 'テストを実行',
     result_title: 'テスト結果',
+  },
+  sandbox_warning: {
+    title: 'スクリプトはサーバー権限で実行されます',
+    description:
+      'セルフホスト版 Logto では、このスクリプトは Logto 本体と同じ環境で実行されます。サーバーの環境変数を読み取り、内部ネットワーク上のサービスに到達できます。サンドボックス化されていません。サーバーへのアクセスを許可してもよい相手にのみ、このページへのアクセスを付与してください。',
   },
   form_error: {
     invalid_json: '無効なJSON形式',

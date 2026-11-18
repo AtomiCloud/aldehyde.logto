@@ -68,6 +68,7 @@ const { triggerInteractionHooks, triggerTestHook, triggerDataHooks } = createHoo
       findUserById: jest.fn().mockReturnValue({
         id: 'user_id',
         username: 'user',
+        cimdClientId: 'https://client.example.com/metadata.json',
         extraField: 'not_ok',
       }),
     },
@@ -109,12 +110,17 @@ describe('triggerInteractionHooks()', () => {
     expect(sendWebhookRequest).toHaveBeenCalledWith({
       hookConfig: hook.config,
       payload: {
+        deliveryId: mockId,
         hookId: 'foo',
         event: 'PostSignIn',
         interactionEvent: 'SignIn',
         sessionId: interactionHookContext.metadata.sessionId,
         userId: '123',
-        user: { id: 'user_id', username: 'user' },
+        user: {
+          id: 'user_id',
+          username: 'user',
+          cimdClientId: 'https://client.example.com/metadata.json',
+        },
         application: { id: 'app_id' },
         createdAt: new Date(100_000).toISOString(),
       },
@@ -265,7 +271,8 @@ describe('triggerTestHook', () => {
     );
     expect(sendWebhookRequest).toHaveBeenCalledWith({
       hookConfig: hook.config,
-      payload: triggerTestHookPayload,
+      // The delivery id is generated per call
+      payload: { ...triggerTestHookPayload, deliveryId: expect.any(String) as string },
       signingKey: hook.signingKey,
     });
 
@@ -316,6 +323,7 @@ describe('triggerDataHooks()', () => {
     expect(sendWebhookRequest).toHaveBeenCalledWith({
       hookConfig: dataHook.config,
       payload: {
+        deliveryId: mockId,
         hookId: 'foo',
         event: 'Role.Created',
         createdAt: new Date(100_000).toISOString(),
@@ -336,6 +344,7 @@ describe('triggerDataHooks()', () => {
         hookRequest: {
           body: {
             event: 'Role.Created',
+            deliveryId: mockId,
             hookId: 'foo',
             ...hookData,
           },
@@ -374,6 +383,7 @@ describe('triggerDataHooks()', () => {
     expect(sendWebhookRequest).toHaveBeenCalledWith({
       hookConfig: dataHook.config,
       payload: {
+        deliveryId: mockId,
         hookId: 'foo',
         event: 'Role.Created',
         createdAt: new Date(100_000).toISOString(),
@@ -383,5 +393,39 @@ describe('triggerDataHooks()', () => {
       },
       signingKey: dataHook.signingKey,
     });
+  });
+
+  it('should omit request IP from trusted-device lifecycle payloads', async () => {
+    jest.useFakeTimers().setSystemTime(100_000);
+    const trustedDeviceHook: Hook = {
+      ...dataHook,
+      event: 'TrustedDevice.Created',
+      events: ['TrustedDevice.Created'],
+    };
+    findAllHooks.mockResolvedValueOnce([trustedDeviceHook]);
+    const hooksManager = new HookContextManager({ userAgent: 'ua', ip: 'request-ip' });
+    const data = { id: 'device-id', userId: 'user-id', expiresAt: 200_000 };
+
+    hooksManager.appendDataHookContext('TrustedDevice.Created', {
+      data,
+      includeRequestIp: false,
+    });
+
+    await triggerDataHooks(new ConsoleLog(), hooksManager);
+
+    expect(sendWebhookRequest).toHaveBeenCalledWith({
+      hookConfig: trustedDeviceHook.config,
+      payload: {
+        deliveryId: mockId,
+        hookId: trustedDeviceHook.id,
+        event: 'TrustedDevice.Created',
+        createdAt: new Date(100_000).toISOString(),
+        data,
+        userAgent: 'ua',
+      },
+      signingKey: trustedDeviceHook.signingKey,
+    });
+
+    jest.useRealTimers();
   });
 });

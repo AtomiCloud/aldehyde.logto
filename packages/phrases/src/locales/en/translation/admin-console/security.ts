@@ -38,6 +38,16 @@ const security = {
       description:
         "Cloudflare's smart CAPTCHA alternative that provides non-intrusive bot protection while ensuring a seamless user experience without visual puzzles.",
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'Open-source, self-hosted proof-of-work CAPTCHA without visual puzzles or third-party services, ideal for regions where other CAPTCHA services are unreachable.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'GeeTest adaptive CAPTCHA with localized challenges and strong performance in mainland China.',
+    },
   },
   captcha_details: {
     back_to_security: 'Back to security',
@@ -53,6 +63,12 @@ const security = {
     domain_placeholder: 'www.google.com (default) or recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA key ID',
     recaptcha_api_key: 'API key of the project',
+    cap_endpoint: 'Cap endpoint',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'This endpoint uses HTTP, which is only suitable for local development. Browsers block HTTP requests from an HTTPS sign-in page, and the secret key would be sent unencrypted. Use HTTPS in production.',
+    geetest_captcha_id: 'CAPTCHA ID',
+    geetest_captcha_key: 'CAPTCHA key',
     deletion_description: 'Are you sure you want to delete this CAPTCHA provider?',
     captcha_deleted: 'CAPTCHA provider deleted successfully',
     setup_captcha: 'Setup CAPTCHA',
@@ -61,6 +77,10 @@ const security = {
     mode_checkbox: 'Checkbox',
     mode_notice:
       'The verification mode is defined in your reCAPTCHA key settings in Google Cloud Console. Changing the mode here requires a matching key type.',
+    score_threshold: 'Score threshold',
+    score_threshold_description:
+      'Scores below the threshold are rejected. 0.0 allows all, 1.0 only allows perfect scores. Default is 0.5.',
+    score_threshold_error: 'Score threshold must be between 0 and 1.',
   },
   password_policy: {
     password_requirements: 'Password requirements',
@@ -148,23 +168,43 @@ const security = {
     manual_unlock: {
       title: 'Manual unlock',
       description:
-        'Unlock users immediately by confirming their identity and entering their identifier.',
-      unblock_by_identifiers: 'Unblock by identifier',
+        'Unlock users immediately by confirming their identity and entering their identifier or user ID.',
+      unblock_by_identifiers: 'Unblock by identifier or user ID',
       modal_description_1:
-        'An identifier was temporarily locked due to multiple failed sign-in/sign-up attempts. To protect security, access will automatically restore after the lockout duration.',
+        'An identifier or user ID was temporarily locked due to multiple failed sign-in/sign-up or security verification attempts. To protect security, access will automatically restore after the lockout duration.',
       modal_description_2:
         ' Only unlock manually if you’ve confirmed the user’s identity and ensured no unauthorized access attempts.',
-      placeholder: 'Enter identifiers (email address / phone number / username)',
+      placeholder:
+        'Enter identifiers or user IDs (email address / phone number / username / user ID)',
       confirm_button_text: 'Unlock now',
       success_toast: 'Unlocked successfully',
-      duplicate_identifier_error: 'Identifier already added',
-      empty_identifier_error: 'Please enter at least one identifier',
+      duplicate_identifier_error: 'Identifier or user ID already added',
+      empty_identifier_error: 'Please enter at least one identifier or user ID',
     },
   },
   blocklist: {
     card_title: 'Email blocklist',
     card_description:
       'Take control of your user base by blocking high-risk or unwanted email addresses.',
+    custom_email_allowlist: {
+      title: 'Allow custom email addresses',
+      description:
+        'Add rules to allow only specific email domains, email addresses, or wildcard patterns for new sign-ups and newly linked emails. Examples: bar@example.com, @example.com, foo*@example.com, *@example.com. The gmail.com and googlemail.com domains are treated as equivalent, and dots in the local part are ignored, so foo.bar@gmail.com matches foobar@googlemail.com.',
+      placeholder: 'Enter an email address, domain, or wildcard pattern',
+      duplicate_error: 'Email address, domain, or wildcard email address pattern already added',
+      invalid_format_error:
+        'Must be a valid email address (bar@example.com), domain (@example.com), or wildcard email address pattern (foo*@example.com, *@example.com)',
+      warnings: {
+        identical_entries:
+          'Some allowlist entries also exist in the block rules. Matching emails may still be blocked.',
+        blocked_exact_email:
+          'Some exact allowlist emails match a block rule. Matching emails may still be blocked.',
+        blocked_subaddressing:
+          'Some allowlist entries contain a plus sign (+), but email subaddressing is blocked.',
+        effectively_unusable:
+          'Based on these checks, the current allowlist may not allow any new emails to pass.',
+      },
+    },
     disposable_email: {
       title: 'Block disposable email addresses',
       description:
@@ -178,12 +218,11 @@ const security = {
     custom_email_address: {
       title: 'Block custom email addresses',
       description:
-        'Add specific email domains or email address which cannot register or link via the UI.',
-      placeholder:
-        'Enter the blocked email address or domain (e.g., bar@example.com, @example.com)',
-      duplicate_error: 'Email address or domain already added',
+        'Add rules to block specific email domains, email addresses, or wildcard patterns from registering or linking via the UI. Examples: bar@example.com, @example.com, foo*@example.com, *@example.com. The gmail.com and googlemail.com domains are treated as equivalent, and dots in the local part are ignored, so foo.bar@gmail.com matches foobar@googlemail.com.',
+      placeholder: 'Enter an email address, domain, or wildcard pattern',
+      duplicate_error: 'Email address, domain, or wildcard email address pattern already added',
       invalid_format_error:
-        'Must be a valid email address(bar@example.com) or domain(@example.com)',
+        'Must be a valid email address (bar@example.com), domain (@example.com), or wildcard email address pattern (foo*@example.com, *@example.com)',
     },
   },
 };

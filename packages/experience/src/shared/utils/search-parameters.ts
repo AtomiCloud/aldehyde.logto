@@ -20,6 +20,25 @@ export const searchKeys = Object.freeze({
   uiLocales: 'ui_locales',
 } satisfies Record<SearchKeysCamelCase, string>);
 
+/**
+ * The `confirm_redirect_policy` sign-in parameter. It is stored in the session storage like
+ * {@link searchKeys}, but it is not sent to the sign-in experience API.
+ */
+export const confirmRedirectPolicyKey = 'confirm_redirect_policy';
+
+const replaceSearchParameters = (parameters: URLSearchParams) => {
+  const parameterString = parameters.toString();
+  const conditionalParamString = condString(parameterString && `?${parameterString}`);
+
+  // Preserve the existing history state (e.g. React Router's location state) to avoid
+  // losing in-progress flow data (like Continue page's interactionEvent) on page refresh.
+  window.history.replaceState(
+    window.history.state,
+    '',
+    window.location.pathname + conditionalParamString + window.location.hash
+  );
+};
+
 export const handleSearchParametersData = () => {
   const { search } = window.location;
 
@@ -28,10 +47,16 @@ export const handleSearchParametersData = () => {
   }
 
   const parameters = new URLSearchParams(search);
+  // A social or SSO callback (`/callback/...?code=...`) resumes the same sign-in, so it keeps the
+  // stored `confirm_redirect_policy`.
+  const isRedirectCallback = window.location.pathname.startsWith('/callback/');
 
   // Store known search keys to the session storage and remove them from the URL to keep the URL
   // clean.
-  for (const key of Object.values(searchKeys)) {
+  for (const key of [
+    ...Object.values(searchKeys),
+    ...(isRedirectCallback ? [] : [confirmRedirectPolicyKey]),
+  ]) {
     const value = parameters.get(key);
     if (value) {
       sessionStorage.setItem(key, value);
@@ -44,13 +69,26 @@ export const handleSearchParametersData = () => {
     }
   }
 
-  const conditionalParamString = condString(parameters.size > 0 && `?${parameters.toString()}`);
+  replaceSearchParameters(parameters);
+};
 
-  // Preserve the existing history state (e.g. React Router's location state) to avoid
-  // losing in-progress flow data (like Continue page's interactionEvent) on page refresh.
-  window.history.replaceState(
-    window.history.state,
-    '',
-    window.location.pathname + conditionalParamString
-  );
+export const removeSearchParameters = (keys: readonly string[]) => {
+  const { search } = window.location;
+
+  if (!search) {
+    return;
+  }
+
+  const parameters = new URLSearchParams(search);
+  const hasTargetParameter = keys.some((key) => parameters.has(key));
+
+  if (!hasTargetParameter) {
+    return;
+  }
+
+  for (const key of keys) {
+    parameters.delete(key);
+  }
+
+  replaceSearchParameters(parameters);
 };

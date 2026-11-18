@@ -30,6 +30,8 @@ import { isAccessDeniedError, parseCustomJwtResponseError } from '#src/utils/cus
 import { i18next } from '#src/utils/i18n.js';
 import { buildAppInsightsTelemetry } from '#src/utils/request.js';
 
+import { dropReservedAuthenticationContextClaims } from './authentication-context-claims.js';
+import { getClientIdentifierPayload, shouldTreatAsCimdClient } from './cimd/index.js';
 import { tokenExchangeActGuard } from './grants/token-exchange/types.js';
 
 const hasI18n = (ctx: KoaContextWithOIDC): ctx is KoaContextWithOIDC & { i18n: i18n } =>
@@ -244,8 +246,14 @@ export const getExtraTokenClaimsForJwtCustomization = async (
     );
 
     const clientId = token.clientId ?? ctx.oidc.client?.clientId;
+    /**
+     * CIMD clients are unregistered, so there is no application context to expose and the
+     * identifier URL must never be used to query the applications table.
+     */
     const applicationContext = conditional(
-      clientId && (await libraries.jwtCustomizers.getApplicationContext(envSet.tenantId, clientId))
+      clientId &&
+        !shouldTreatAsCimdClient(envSet, clientId) &&
+        (await libraries.jwtCustomizers.getApplicationContext(envSet.tenantId, clientId))
     );
 
     // For organization (API resource) tokens, expose the target organization so the customizer
@@ -273,7 +281,7 @@ export const getExtraTokenClaimsForJwtCustomization = async (
 
     logEntry.append({
       sessionId: ctx.oidc.session?.uid,
-      applicationId: ctx.oidc.client?.clientId,
+      ...getClientIdentifierPayload(ctx.oidc.client?.clientId),
       ...conditional(logtoUserInfo && { userId: logtoUserInfo.id }),
       tenantId: envSet.tenantId,
     });
@@ -334,11 +342,18 @@ export const getExtraTokenClaimsForJwtCustomization = async (
 
     const result = EnvSet.values.isCloud
       ? await libraries.jwtCustomizers.runScriptRemotely(payload)
-      : await JwtCustomizerLibrary.runScriptInLocalVm(payload);
+      : await JwtCustomizerLibrary.runScriptLocally(payload, envSet.tenantId);
 
     ctx.prependAllLogEntries({ customTokenClaims: result });
 
-    return result;
+    /**
+     * The authentication context is reserved on user access tokens: `acr`, `amr`, and `auth_time`
+     * always come from Logto, and the customizer is merged last, so a script's values for them are
+     * dropped before merging (the log entry above keeps the raw script result). Client credentials
+     * tokens carry no authentication context, so their custom claims stay untouched.
+     */
+    // OIDC step-up authentication context is reserved against the customizer on user tokens.
+    return isClientCredentialsToken ? result : dropReservedAuthenticationContextClaims(result);
   } catch (error: unknown) {
     void appInsights.trackException(error, buildAppInsightsTelemetry(ctx));
 

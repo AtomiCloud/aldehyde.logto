@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Account MFA route scenarios are kept together. */
 import { UserScope } from '@logto/core-kit';
 import { AccountCenterControlValue, MfaFactor, type User } from '@logto/schemas';
 import { createMockUtils, pickDefault } from '@logto/shared/esm';
@@ -17,10 +18,20 @@ const { mockEsmWithActual } = createMockUtils(jest);
 
 const mockValidateTotpSecret = jest.fn();
 const mockValidateTotpToken = jest.fn();
+const { id, createdAt, ...mockWebAuthnBindMfa } = mockUserWebAuthnMfaVerification;
+
+const mockBuildVerificationRecordByIdAndType = jest.fn(async () => ({
+  isVerified: true,
+  toBindMfa: () => mockWebAuthnBindMfa,
+}));
 
 await mockEsmWithActual('#src/libraries/verification-helpers/totp-validation.js', () => ({
   validateTotpSecret: mockValidateTotpSecret,
   validateTotpToken: mockValidateTotpToken,
+}));
+
+await mockEsmWithActual('#src/libraries/verification.js', () => ({
+  buildVerificationRecordByIdAndType: mockBuildVerificationRecordByIdAndType,
 }));
 
 const mockedQueries = {
@@ -46,6 +57,13 @@ const { findUserById, updateUserById } = mockedQueries.users;
 const { findDefaultSignInExperience } = mockedQueries.signInExperiences;
 
 const accountMfaRoutes = await pickDefault(import('./mfa-verifications.js'));
+
+const getLastUpdatePayload = () => updateUserById.mock.calls.at(-1)?.[1];
+
+const expectUpdatedMfaEnabled = (enabled: boolean) => {
+  const updatePayload = getLastUpdatePayload();
+  expect(updatePayload?.logtoConfig).toMatchObject({ mfa: { enabled } });
+};
 
 describe('account mfa verification routes', () => {
   const tenantContext = new MockTenant(undefined, mockedQueries);
@@ -115,6 +133,7 @@ describe('account mfa verification routes', () => {
           mfaVerifications: [expect.any(Object)],
         })
       );
+      expectUpdatedMfaEnabled(true);
       expect(replacedTotpVerification).toEqual(
         expect.objectContaining({
           type: MfaFactor.TOTP,
@@ -148,6 +167,7 @@ describe('account mfa verification routes', () => {
           ],
         })
       );
+      expectUpdatedMfaEnabled(true);
     });
 
     it('should return 400 for an invalid totp secret', async () => {
@@ -177,6 +197,75 @@ describe('account mfa verification routes', () => {
     });
   });
 
+  describe('POST /api/my-account/mfa-verifications backup codes', () => {
+    it('replaces an exhausted backup code record when generating new codes', async () => {
+      const exhaustedBackupCode = {
+        id: 'exhausted-backup-code',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        type: MfaFactor.BackupCode as const,
+        codes: [{ code: '0123456789', usedAt: '2024-01-02T00:00:00.000Z' }],
+      };
+
+      findUserById.mockResolvedValueOnce({
+        ...mockUser,
+        mfaVerifications: [mockUserTotpMfaVerification, exhaustedBackupCode],
+      });
+      findDefaultSignInExperience.mockResolvedValueOnce({
+        ...mockSignInExperience,
+        mfa: { ...mockSignInExperience.mfa, factors: [MfaFactor.BackupCode] },
+      });
+
+      const codes = Array.from({ length: 10 }, (_, index) => index.toString(16).padStart(10, '0'));
+      const response = await accountRequest.post('/my-account/mfa-verifications').send({
+        type: MfaFactor.BackupCode,
+        codes,
+      });
+
+      expect(response.status).toBe(204);
+
+      const updatedMfaVerifications = getLastUpdatePayload()?.mfaVerifications ?? [];
+      expect(updatedMfaVerifications).toHaveLength(2);
+      expect(updatedMfaVerifications.some(({ id }) => id === exhaustedBackupCode.id)).toBe(false);
+      expect(updatedMfaVerifications).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: MfaFactor.TOTP }),
+          expect.objectContaining({
+            type: MfaFactor.BackupCode,
+            codes: codes.map((code) => expect.objectContaining({ code })),
+          }),
+        ])
+      );
+      expectUpdatedMfaEnabled(true);
+    });
+  });
+
+  describe('GET /api/my-account/mfa-verifications/backup-codes', () => {
+    it('returns the usable backup code record when an exhausted record also exists', async () => {
+      const exhaustedBackupCode = {
+        id: 'exhausted-backup-code',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        type: MfaFactor.BackupCode as const,
+        codes: [{ code: '0123456789', usedAt: '2024-01-02T00:00:00.000Z' }],
+      };
+      const usableBackupCode = {
+        id: 'usable-backup-code',
+        createdAt: '2024-02-01T00:00:00.000Z',
+        type: MfaFactor.BackupCode as const,
+        codes: [{ code: '0123456789' }, { code: '9876543210', usedAt: '2024-02-02T00:00:00.000Z' }],
+      };
+
+      findUserById.mockResolvedValueOnce({
+        ...mockUser,
+        mfaVerifications: [exhaustedBackupCode, usableBackupCode],
+      });
+
+      const response = await accountRequest.get('/my-account/mfa-verifications/backup-codes');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ codes: usableBackupCode.codes });
+    });
+  });
+
   describe('POST /api/my-account/mfa-verifications passkey permission and binding', () => {
     it('should allow WebAuthn binding when passkeySignIn.enabled is true (without MFA factor)', async () => {
       findDefaultSignInExperience.mockResolvedValueOnce({
@@ -190,10 +279,9 @@ describe('account mfa verification routes', () => {
         newIdentifierVerificationRecordId: 'fake_record_id',
       });
 
-      // Binding check passed — findDefaultSignInExperience was reached
+      expect(response.status).toBe(204);
       expect(findDefaultSignInExperience).toHaveBeenCalled();
-      // Error is from verification record lookup, not binding check
-      expect(response.body).not.toHaveProperty('code', 'session.mfa.mfa_factor_not_enabled');
+      expect(getLastUpdatePayload()).not.toHaveProperty('logtoConfig');
     });
 
     it('should reject WebAuthn binding when both mfa.factors and passkeySignIn.enabled are off', async () => {
@@ -249,10 +337,10 @@ describe('account mfa verification routes', () => {
         newIdentifierVerificationRecordId: 'fake_record_id',
       });
 
-      // Permission check passed — findDefaultSignInExperience was reached
+      expect(response.status).toBe(204);
+      expectUpdatedMfaEnabled(true);
+      // Permission check passed, and WebAuthn is treated as MFA when enabled in MFA factors.
       expect(findDefaultSignInExperience).toHaveBeenCalled();
-      // Error is from verification record lookup, not permission check
-      expect(response.body).not.toHaveProperty('code', 'account_center.field_not_editable');
     });
 
     it('should fall back to fields.mfa for non-WebAuthn types', async () => {
@@ -263,6 +351,7 @@ describe('account mfa verification routes', () => {
 
       // Uses fields.mfa which is Edit, so permission passes; TOTP is in factors
       expect(response.status).toBe(204);
+      expectUpdatedMfaEnabled(true);
     });
   });
 
@@ -393,6 +482,13 @@ describe('account mfa verification routes', () => {
 
       // Fields.mfa = Edit, so should pass
       expect(response.status).toBe(204);
+      expect(updateUserById).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.objectContaining({
+          mfaVerifications: [],
+        })
+      );
+      expect(getLastUpdatePayload()).not.toHaveProperty('logtoConfig');
     });
 
     it('should reject WebAuthn deletion when passkey field is not editable', async () => {
@@ -435,3 +531,4 @@ describe('account mfa verification routes', () => {
     });
   });
 });
+/* eslint-enable max-lines */

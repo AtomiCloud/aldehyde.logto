@@ -32,6 +32,7 @@ const description = {
   skip_social_linking: '跳过链接现有帐户？',
   reset_password: '忘记密码',
   reset_password_description: '输入{{types, list(type: disjunction;)}}，获取验证码以重设密码。',
+  reset_password_magic_link_description: '输入与你的账号关联的邮箱地址以继续重设密码。',
   new_password: '新密码',
   set_password: '设置密码',
   password_changed: '已重置密码！',
@@ -89,6 +90,8 @@ const description = {
     '你的企业已为电子邮件账户 {{email}} 启用了单点登录。你可以继续使用以下 SSO 提供商进行登录。',
   single_sign_on_enabled: '该帐户已启用单点登录',
   authorize_title: '授权给 {{name}}',
+  unregistered_client_notice:
+    '此应用由 <hostname>{{host}}</hostname> 自行声明，包括其名称和图标。请在继续之前确认该域名。',
   request_permission: '{{name}} 需要权限：',
   grant_organization_access: '授予组织访问权限：',
   authorize_personal_data_usage: '你将授权该应用使用你的以下个人数据：',
@@ -112,6 +115,8 @@ const description = {
   support_website: '支持网站：<link></link>',
   switch_account_title: '你当前登录的账号是 {{account}}',
   switch_account_description: '要继续，你将退出当前账户，并自动切换到新账户。',
+  continue_to_app_title: '返回应用',
+  continue_to_app_description: '继续即可返回应用。',
   about_yourself: '介绍一下你自己',
   verify_identity: '验证你的身份',
   choose_verification_method: '选择登录方式',
@@ -124,6 +129,7 @@ const description = {
     phone_verification_code: '短信验证码',
     verification_code_description: '发送至 {{target}}',
   },
+  select_wallet: '选择钱包',
 };
 
 export default Object.freeze(description);

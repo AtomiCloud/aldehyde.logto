@@ -1,5 +1,9 @@
 import { type TemplateType, type SocialUserInfo } from '@logto/connector-kit';
 import {
+  type BindBackupCode,
+  type BindTotp,
+  type BindWebAuthn,
+  type InteractionAuthenticationContext,
   type VerificationType,
   type InteractionEvent,
   type User,
@@ -16,6 +20,7 @@ export type RedirectResponse = {
 export type SanitizedInteractionStorageData = {
   interactionEvent: InteractionEvent;
   userId?: string;
+  authenticationContext?: InteractionAuthenticationContext;
   profile?: Partial<
     Pick<
       User,
@@ -51,6 +56,14 @@ export type SanitizedInteractionStorageData = {
     enterpriseSsoUserInfo?: Record<string, unknown>;
     oneTimeTokenContext?: Record<string, unknown>;
   }>;
+  mfa?: {
+    mfaEnabled?: boolean;
+    mfaSkipped?: boolean;
+    passkeySkipped?: boolean;
+    totp?: Pick<BindTotp, 'type'>;
+    webAuthn?: BindWebAuthn[];
+    backupCode?: Omit<BindBackupCode, 'codes'>;
+  };
   captcha?: {
     verified: boolean;
     skipped: boolean;

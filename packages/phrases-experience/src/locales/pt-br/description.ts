@@ -36,6 +36,8 @@ const description = {
   reset_password: 'Esqueceu a senha',
   reset_password_description:
     'Digite o {{types, list(type: disjunction;)}} à sua conta e enviaremos a você o código de verificação para redefinir sua senha.',
+  reset_password_magic_link_description:
+    'Insira o endereço de e-mail associado à sua conta para continuar redefinindo sua senha.',
   new_password: 'Nova senha',
   set_password: 'Configurar senha',
   password_changed: 'Senha alterada',
@@ -101,6 +103,8 @@ const description = {
     'Sua empresa ativou o Single Sign-On para a conta de email {{email}}. Você pode continuar a fazer login com os seguintes provedores de SSO.',
   single_sign_on_enabled: 'Esta conta tem Single Sign-On ativado.',
   authorize_title: 'Autorizar {{name}}',
+  unregistered_client_notice:
+    'Este app é autodeclarado por <hostname>{{host}}</hostname>, incluindo seu nome e logotipo. Verifique o nome do host antes de continuar.',
   request_permission: '{{name}} está solicitando acesso a:',
   grant_organization_access: 'Conceder acesso à organização:',
   authorize_personal_data_usage: 'Autorizar o uso dos seus dados pessoais:',
@@ -126,6 +130,8 @@ const description = {
   switch_account_title: 'Você está atualmente conectado como {{account}}',
   switch_account_description:
     'Para continuar, você será desconectado da conta atual e automaticamente trocado para a nova conta.',
+  continue_to_app_title: 'Voltar ao app',
+  continue_to_app_description: 'Continue para voltar ao app.',
   about_yourself: 'Conte-nos sobre você',
   verify_identity: 'Verifique sua identidade',
   choose_verification_method: 'Escolha como deseja fazer login',
@@ -138,6 +144,7 @@ const description = {
     phone_verification_code: 'Código de verificação por telefone',
     verification_code_description: 'Enviar para {{target}}',
   },
+  select_wallet: 'Selecione uma carteira',
 };
 
 export default Object.freeze(description);

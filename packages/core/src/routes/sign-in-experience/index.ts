@@ -3,6 +3,7 @@ import { DemoConnector } from '@logto/connector-kit';
 import { PasswordPolicyChecker } from '@logto/core-kit';
 import {
   ConnectorType,
+  CrossOriginOpenerPolicy,
   SignInExperiences,
   MfaPolicy,
   ProductEvent,
@@ -43,13 +44,10 @@ const isNonSkippableMfaPromptPolicy = (policy: MfaPolicy) =>
     policy
   );
 
-const signInExperienceResponseGuard = SignInExperiences.guard;
-const signInExperienceCreateGuard = SignInExperiences.createGuard;
-
 export default function signInExperiencesRoutes<T extends ManagementApiRouter>(
   ...args: RouterInitArgs<T>
 ) {
-  const [router, { id: tenantId, queries, libraries, connectors }] = args;
+  const [router, { id: tenantId, queries, libraries, connectors, subscription }] = args;
   const { findDefaultSignInExperience, updateDefaultSignInExperience } = queries.signInExperiences;
   const { deleteConnectorById } = queries.connectors;
   const { findUserById } = queries.users;
@@ -67,7 +65,7 @@ export default function signInExperiencesRoutes<T extends ManagementApiRouter>(
   router.get(
     '/sign-in-exp',
     koaGuard({
-      response: signInExperienceResponseGuard,
+      response: SignInExperiences.guard,
       status: [200, 404],
     }),
     async (ctx, next) => {
@@ -81,7 +79,7 @@ export default function signInExperiencesRoutes<T extends ManagementApiRouter>(
     '/sign-in-exp',
     koaGuard({
       query: z.object({ removeUnusedDemoSocialConnector: z.string().optional() }),
-      body: signInExperienceCreateGuard
+      body: SignInExperiences.createGuard
         .omit({
           id: true,
           termsOfUseUrl: true,
@@ -104,7 +102,7 @@ export default function signInExperiencesRoutes<T extends ManagementApiRouter>(
           })
         )
         .partial(),
-      response: signInExperienceResponseGuard,
+      response: SignInExperiences.guard,
       status: [200, 400, 404, 422, 403, 409],
     }),
     // eslint-disable-next-line complexity
@@ -133,11 +131,15 @@ export default function signInExperiencesRoutes<T extends ManagementApiRouter>(
         passkeySignIn,
         passwordExpiration,
         verificationCodePolicy,
+        crossOriginOpenerPolicy,
       } = rest;
 
       const normalizedSignUpProfileFields = await normalizeProfileFields(signUpProfileFields);
       const normalizedCustomUiCsp = conditional(customUiCsp && normalizeCustomUiCsp(customUiCsp));
       const hasCustomUiCsp = hasCustomUiCspSources(normalizedCustomUiCsp);
+      const hasCrossOriginOpenerPolicy =
+        crossOriginOpenerPolicy !== undefined &&
+        crossOriginOpenerPolicy !== CrossOriginOpenerPolicy.UnsafeNone;
 
       if (languageInfo) {
         await validateLanguageInfo(languageInfo);
@@ -348,27 +350,49 @@ export default function signInExperiencesRoutes<T extends ManagementApiRouter>(
         );
       }
 
-      // Guard the quota for BYUI if the hideLogtoBranding is set to true
-      if (hideLogtoBranding) {
-        // Hide Logto branding is only available for Logto Cloud
-        assertThat(
-          EnvSet.values.isCloud,
-          new RequestError({
-            code: 'request.invalid_input',
-            details: 'Hide Logto branding is not supported in this environment',
-          })
-        );
+      const requiresBringYourUi =
+        hideLogtoBranding === true || hasCustomUiCsp || hasCrossOriginOpenerPolicy;
+
+      /**
+       * On Cloud, hiding the Logto branding, the Custom UI CSP and the Cross-Origin-Opener-Policy
+       * are gated by the tenant subscription through the `bringYourUiEnabled` quota guard below.
+       * On a self-hosted deployment that guard is a no-op, so each feature is gated by its own
+       * entitlement in the installed license instead: hiding the branding by `hideLogtoBranding`,
+       * and the Custom UI CSP and Cross-Origin-Opener-Policy by `bringYourUi`, which they are part
+       * of. Without a license, none is available, as in plain OSS.
+       */
+      if (!EnvSet.values.isCloud && requiresBringYourUi) {
+        const { quota: licenseQuota } = await subscription.getSelfHostedSubscription();
+
+        if (hideLogtoBranding) {
+          assertThat(
+            licenseQuota.hideLogtoBranding,
+            new RequestError({
+              code: 'request.invalid_input',
+              details: 'Hide Logto branding is not supported in this environment',
+            })
+          );
+        }
+        if (hasCustomUiCsp) {
+          assertThat(
+            licenseQuota.bringYourUi,
+            new RequestError({
+              code: 'request.invalid_input',
+              details: 'Custom UI CSP configuration is not available',
+            })
+          );
+        }
+        if (hasCrossOriginOpenerPolicy) {
+          assertThat(
+            licenseQuota.bringYourUi,
+            new RequestError({
+              code: 'request.invalid_input',
+              details: 'Cross-Origin-Opener-Policy configuration is not available',
+            })
+          );
+        }
       }
-      if (hasCustomUiCsp) {
-        assertThat(
-          EnvSet.values.isCloud,
-          new RequestError({
-            code: 'request.invalid_input',
-            details: 'Custom UI CSP configuration is not available',
-          })
-        );
-      }
-      if (hideLogtoBranding === true || hasCustomUiCsp) {
+      if (requiresBringYourUi) {
         await quota.guardTenantUsageByKey('bringYourUiEnabled');
       }
       if (passkeySignIn?.enabled) {

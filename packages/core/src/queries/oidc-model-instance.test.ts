@@ -24,9 +24,9 @@ const {
   findPayloadByPayloadField,
   findPayloadByUid,
   findPayloadByUserCode,
-  consumeInstanceById,
   destroyInstanceById,
   revokeInstanceByGrantId,
+  revokeInstanceByUserId,
   findUserActiveApplicationGrants,
 } = createOidcModelInstanceQueries(pool);
 
@@ -47,6 +47,12 @@ describe('oidc-model-instance query', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // `clearAllMocks` keeps persistent implementations; reset so a failed test cannot leak one.
+    mockQuery.mockReset();
+    jest.restoreAllMocks();
   });
 
   it('upsertInstance', async () => {
@@ -255,28 +261,6 @@ describe('oidc-model-instance query', () => {
     expect(mockQuery).toHaveBeenCalledTimes(2);
   });
 
-  it('consumeInstanceById', async () => {
-    jest.useFakeTimers().setSystemTime(100_000);
-
-    const expectSql = sql`
-      update ${table}
-      set ${fields.consumedAt}=to_timestamp($1)
-      where ${fields.modelName}=$2
-      and ${fields.id}=$3
-    `;
-
-    mockQuery.mockImplementationOnce(async (sql, values) => {
-      expectSqlAssert(sql, expectSql.sql);
-      expect(values).toEqual([100, instance.modelName, instance.id]);
-
-      return createMockQueryResult([]);
-    });
-
-    await consumeInstanceById(instance.modelName, instance.id);
-
-    jest.useRealTimers();
-  });
-
   it('destroyInstanceById', async () => {
     const expectSql = sql`
       delete from ${table}
@@ -294,83 +278,76 @@ describe('oidc-model-instance query', () => {
     await destroyInstanceById(instance.modelName, instance.id);
   });
 
-  it('revokeInstanceByGrantId', async () => {
-    const grantId = 'grant';
-    const batchSize = 1000;
+  const revokeBatchSize = 2000;
+  const revokeCases = {
+    revokeInstanceByGrantId: {
+      revoke: async (target: string) => revokeInstanceByGrantId(instance.modelName, target),
+      expectSql: sql`
+        delete from ${table}
+        where ${fields.id} in (
+          select ${fields.id}
+          from ${table}
+          where ${fields.modelName}=$1
+          and ${fields.payload} ? 'grantId'
+          and ${fields.payload}->>'grantId'=$2
+          limit $3
+        )
+      `,
+    },
+    revokeInstanceByUserId: {
+      revoke: async (target: string) => revokeInstanceByUserId(instance.modelName, target),
+      expectSql: sql`
+        delete from ${table}
+        where ${fields.id} in (
+          select ${fields.id}
+          from ${table}
+          where ${fields.modelName}=$1
+          and ${fields.payload} ? 'accountId'
+          and ${fields.payload}->>'accountId'=$2
+          limit $3
+        )
+      `,
+    },
+  } as const;
 
-    const expectSql = sql`
-      delete from ${table}
-      where ${fields.id} in (
-        select ${fields.id}
-        from ${table}
-        where ${fields.modelName}=$1
-        and ${fields.payload} ? 'grantId'
-        and ${fields.payload}->>'grantId'=$2
-        limit $3
-      )
-    `;
+  it.each([
+    ['revokeInstanceByGrantId', [revokeBatchSize, 0]],
+    // A partial batch must not end the loop — see the early-exit bug closed in #9151.
+    ['revokeInstanceByGrantId', [300, 200, 0]],
+    ['revokeInstanceByUserId', [revokeBatchSize, 0]],
+    ['revokeInstanceByUserId', [300, 200, 0]],
+    ['revokeInstanceByUserId', [revokeBatchSize, undefined]],
+  ] as const)('%s deletes in batches until drained %j', async (method, rowCounts) => {
+    const target = 'target-id';
+    const { revoke, expectSql } = revokeCases[method];
 
-    mockQuery
+    const mockBatch = (rowCount?: number) => {
       // @ts-expect-error - mock delete query
-      .mockImplementationOnce(async (sql, values) => {
+      mockQuery.mockImplementationOnce(async (sql, values) => {
         expectSqlAssert(sql, expectSql.sql);
-        expect(values).toEqual([instance.modelName, grantId, batchSize]);
+        expect(values).toEqual([instance.modelName, target, revokeBatchSize]);
 
-        return { rowCount: 1000 };
-      })
-      // @ts-expect-error - mock delete query
-      .mockImplementationOnce(async (sql, values) => {
-        expectSqlAssert(sql, expectSql.sql);
-        expect(values).toEqual([instance.modelName, grantId, batchSize]);
-
-        return { rowCount: 0 };
+        return { rowCount };
       });
+    };
 
-    await revokeInstanceByGrantId(instance.modelName, grantId);
-    expect(mockQuery).toHaveBeenCalledTimes(2);
+    for (const rowCount of rowCounts) {
+      mockBatch(rowCount);
+    }
+
+    await revoke(target);
+    expect(mockQuery).toHaveBeenCalledTimes(rowCounts.length);
   });
 
-  it('revokeInstanceByGrantId should continue until no rows are deleted', async () => {
-    const grantId = 'grant';
-    const batchSize = 1000;
+  it('revocation logs an error and stops at the max batch count', async () => {
+    const error = jest.spyOn(console, 'error').mockImplementation();
+    // @ts-expect-error - mock delete query
+    mockQuery.mockImplementation(async () => ({ rowCount: 1 }));
 
-    const expectSql = sql`
-      delete from ${table}
-      where ${fields.id} in (
-        select ${fields.id}
-        from ${table}
-        where ${fields.modelName}=$1
-        and ${fields.payload} ? 'grantId'
-        and ${fields.payload}->>'grantId'=$2
-        limit $3
-      )
-    `;
+    await revokeInstanceByUserId(instance.modelName, 'target-id');
 
-    mockQuery
-      // @ts-expect-error - mock delete query
-      .mockImplementationOnce(async (sql, values) => {
-        expectSqlAssert(sql, expectSql.sql);
-        expect(values).toEqual([instance.modelName, grantId, batchSize]);
-
-        return { rowCount: 500 };
-      })
-      // @ts-expect-error - mock delete query
-      .mockImplementationOnce(async (sql, values) => {
-        expectSqlAssert(sql, expectSql.sql);
-        expect(values).toEqual([instance.modelName, grantId, batchSize]);
-
-        return { rowCount: 200 };
-      })
-      // @ts-expect-error - mock delete query
-      .mockImplementationOnce(async (sql, values) => {
-        expectSqlAssert(sql, expectSql.sql);
-        expect(values).toEqual([instance.modelName, grantId, batchSize]);
-
-        return { rowCount: 0 };
-      });
-
-    await revokeInstanceByGrantId(instance.modelName, grantId);
-    expect(mockQuery).toHaveBeenCalledTimes(3);
+    expect(mockQuery).toHaveBeenCalledTimes(1000);
+    expect(error).toHaveBeenCalledTimes(1);
   });
 
   it('findUserActiveApplicationGrants with thirdparty', async () => {

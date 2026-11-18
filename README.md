@@ -1,3 +1,5 @@
+> **aldehyde.logto** — Independent fork; not affiliated with or endorsed by Silverhand Inc. / Logto. Fork notes: [fork/README.md](fork/README.md).
+
 <p align="center">
   <a href="https://logto.io/?utm_source=github&utm_medium=readme" target="_blank" align="center" alt="Go to Logto website">
     <picture>

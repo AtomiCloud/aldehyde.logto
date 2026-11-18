@@ -39,15 +39,25 @@ const buildConfig = (mode: string): UserConfig => ({
     },
   },
   build: {
-    // Use the same browserslist configuration as in README.md.
+    // Keep explicit iOS and Safari floors: "last 2 versions" moves with caniuse-lite data, which
+    // previously raised the target past Safari 16.4 and emitted syntax that blanks the sign-in
+    // page on older iOS devices (e.g. class static blocks).
     // Consider using the esbuild target directly in the future.
-    target: browserslistToEsbuild('> 0.5%, last 2 versions, Firefox ESR, not dead'),
+    target: browserslistToEsbuild(
+      '> 0.5%, last 2 versions, Firefox ESR, not dead, iOS >= 15, Safari >= 15'
+    ),
     rollupOptions: {
       output: {
         // Tip: You can use `pnpx vite-bundle-visualizer` to analyze the bundle size
         manualChunks: (id, meta) => {
           if (/\/node_modules\/i18next[^/]*\//.test(id)) {
             return 'i18next';
+          }
+
+          // Keep the Cap widget in its own lazy-loaded chunk, as it's only needed when Cap is the
+          // captcha provider and it registers a custom element once evaluated.
+          if (id.includes('/node_modules/cap-widget/')) {
+            return 'cap-widget';
           }
 
           for (const largePackage of ['libphonenumber-js', 'core-js']) {

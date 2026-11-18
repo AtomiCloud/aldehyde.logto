@@ -5,14 +5,16 @@ import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
 
 import { type UserRouter, type RouterInitArgs } from '../types.js';
 
 import { accountApiPrefix } from './constants.js';
+import { assertIdentityVerified } from './utils/identity-verification.js';
 
 export default function accountGrantRoutes<T extends UserRouter>(
-  ...[router, { provider, libraries }]: RouterInitArgs<T>
+  ...[router, { provider, libraries, queries }]: RouterInitArgs<T>
 ) {
   const { session: sessionLibrary } = libraries;
 
@@ -22,18 +24,16 @@ export default function accountGrantRoutes<T extends UserRouter>(
       query: z.object({
         appType: z.enum(['firstParty', 'thirdParty']).optional(),
       }),
-      status: [200, 400, 401, 500],
+      status: [200, 400, 401, 403, 500],
       response: getUserApplicationGrantsResponseGuard,
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { fields } = ctx.accountCenter;
       const { appType } = ctx.guard.query;
 
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      assertIdentityVerified(ctx);
+      await assertFirstPartyClient(queries, clientId);
 
       assertThat(
         fields.session === AccountCenterControlValue.Edit ||
@@ -62,19 +62,16 @@ export default function accountGrantRoutes<T extends UserRouter>(
       params: z.object({
         grantId: z.string().min(1),
       }),
-      status: [204, 400, 401, 404, 500],
+      status: [204, 400, 401, 403, 404, 500],
     }),
     async (ctx, next) => {
       const {
         params: { grantId },
       } = ctx.guard;
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { fields } = ctx.accountCenter;
 
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      assertIdentityVerified(ctx);
 
       assertThat(
         fields.session === AccountCenterControlValue.Edit,
@@ -85,6 +82,8 @@ export default function accountGrantRoutes<T extends UserRouter>(
         scopes.has(UserScope.Sessions),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+
+      await assertFirstPartyClient(queries, clientId);
 
       await sessionLibrary.revokeUserGrantById(provider, userId, grantId);
       await trySafe(

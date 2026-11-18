@@ -1,4 +1,4 @@
-import { AgreeToTermsPolicy, SignInMode, VerificationType, experience } from '@logto/schemas';
+import { AgreeToTermsPolicy, SignInMode, VerificationType } from '@logto/schemas';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -8,20 +8,23 @@ import useApi from '@/hooks/use-api';
 import useEmailBlockedErrorHandler from '@/hooks/use-email-blocked-error-handler';
 import useErrorHandler from '@/hooks/use-error-handler';
 import useGlobalRedirectTo from '@/hooks/use-global-redirect-to';
-import useNavigateWithPreservedSearchParams from '@/hooks/use-navigate-with-preserved-search-params';
+import useNavigateToSignIn from '@/hooks/use-navigate-to-sign-in';
 import useRedirectCallbackValidation from '@/hooks/use-redirect-callback-validation';
 import { useSieMethods } from '@/hooks/use-sie';
 import useTerms from '@/hooks/use-terms';
-import useToast from '@/hooks/use-toast';
 import { parseQueryParameters } from '@/utils';
 
-const useSingleSignOnRegister = () => {
+type SingleSignOnRegisterOptions = {
+  readonly onEmailBlocked?: () => void;
+};
+
+const useSingleSignOnRegister = ({ onEmailBlocked }: SingleSignOnRegisterOptions = {}) => {
   const handleError = useErrorHandler();
-  const emailBlockedErrorHandler = useEmailBlockedErrorHandler();
+  const emailBlockedErrorHandler = useEmailBlockedErrorHandler({ onConfirm: onEmailBlocked });
 
   const request = useApi(registerWithVerifiedIdentifier);
   const { termsValidation, agreeToTermsPolicy } = useTerms();
-  const navigate = useNavigateWithPreservedSearchParams();
+  const navigateToSignIn = useNavigateToSignIn();
   const redirectTo = useGlobalRedirectTo();
 
   return useCallback(
@@ -32,7 +35,8 @@ const useSingleSignOnRegister = () => {
        * Therefore, skip the check for `Manual` policy.
        */
       if (agreeToTermsPolicy !== AgreeToTermsPolicy.Manual && !(await termsValidation())) {
-        navigate('/' + experience.routes.signIn);
+        // Push the sign-in page to keep the current page in the history.
+        navigateToSignIn(undefined, { replace: false });
         return;
       }
 
@@ -52,7 +56,7 @@ const useSingleSignOnRegister = () => {
       agreeToTermsPolicy,
       emailBlockedErrorHandler,
       handleError,
-      navigate,
+      navigateToSignIn,
       redirectTo,
       request,
       termsValidation,
@@ -75,7 +79,6 @@ const useSingleSignOnListener = (connectorId: string) => {
   const [loading, setLoading] = useState(true);
   const [isConsumed, setIsConsumed] = useState(false);
   const [searchParameters, setSearchParameters] = useSearchParams();
-  const { setToast } = useToast();
   const redirectTo = useGlobalRedirectTo();
   const { signInMode } = useSieMethods();
 
@@ -86,10 +89,13 @@ const useSingleSignOnListener = (connectorId: string) => {
   });
 
   const handleError = useErrorHandler();
-  const navigate = useNavigateWithPreservedSearchParams();
+  const navigateToSignIn = useNavigateToSignIn();
 
   const singleSignOnAuthorizationRequest = useApi(signInWithSso);
-  const registerSingleSignOnIdentity = useSingleSignOnRegister();
+
+  const registerSingleSignOnIdentity = useSingleSignOnRegister({
+    onEmailBlocked: navigateToSignIn,
+  });
 
   const singleSignOnHandler = useCallback(
     async (connectorId: string, verificationId: string, data: Record<string, unknown>) => {
@@ -108,8 +114,7 @@ const useSingleSignOnListener = (connectorId: string) => {
           'user.sso_identity_not_exist': async (error) => {
             // Should not let user register new social account under sign-in only mode
             if (signInMode === SignInMode.SignIn) {
-              setToast(error.message);
-              navigate('/' + experience.routes.signIn);
+              navigateToSignIn(error.code, { toast: error.message });
               return;
             }
 
@@ -117,8 +122,7 @@ const useSingleSignOnListener = (connectorId: string) => {
           },
           // Redirect to sign-in page if error is not handled by the error handlers
           global: async (error) => {
-            setToast(error.message);
-            navigate('/' + experience.routes.signIn);
+            navigateToSignIn(error.code, { toast: error.message });
           },
         });
         return;
@@ -130,10 +134,9 @@ const useSingleSignOnListener = (connectorId: string) => {
     },
     [
       handleError,
-      navigate,
+      navigateToSignIn,
       redirectTo,
       registerSingleSignOnIdentity,
-      setToast,
       signInMode,
       singleSignOnAuthorizationRequest,
     ]
@@ -155,8 +158,7 @@ const useSingleSignOnListener = (connectorId: string) => {
     const result = validateAndRestore(state);
 
     if (!result.valid) {
-      setToast(t(`error.${result.error}`));
-      navigate('/' + experience.routes.signIn);
+      navigateToSignIn(result.error, { toast: t(`error.${result.error}`) });
       return;
     }
 
@@ -164,10 +166,9 @@ const useSingleSignOnListener = (connectorId: string) => {
   }, [
     connectorId,
     isConsumed,
-    navigate,
+    navigateToSignIn,
     searchParameters,
     setSearchParameters,
-    setToast,
     singleSignOnHandler,
     t,
     validateAndRestore,

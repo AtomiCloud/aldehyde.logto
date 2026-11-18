@@ -8,31 +8,31 @@ import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
 
 import { type UserRouter, type RouterInitArgs } from '../types.js';
 
 import { accountApiPrefix } from './constants.js';
+import { assertIdentityVerified } from './utils/identity-verification.js';
 
 export default function accountSessionRoutes<T extends UserRouter>(
-  ...[router, { provider, libraries }]: RouterInitArgs<T>
+  ...[router, { provider, libraries, queries }]: RouterInitArgs<T>
 ) {
   const { session: sessionLibrary } = libraries;
 
   router.get(
     `${accountApiPrefix}/sessions`,
     koaGuard({
-      status: [200, 400, 401, 500],
+      status: [200, 400, 401, 403, 500],
       response: getAccountUserSessionsResponseGuard,
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified, sessionUid } = ctx.auth;
+      const { id: userId, scopes, sessionUid, clientId } = ctx.auth;
       const { fields } = ctx.accountCenter;
 
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      assertIdentityVerified(ctx);
+      await assertFirstPartyClient(queries, clientId);
 
       assertThat(
         fields.session === AccountCenterControlValue.Edit ||
@@ -67,17 +67,14 @@ export default function accountSessionRoutes<T extends UserRouter>(
       params: z.object({
         sessionId: z.string().min(1),
       }),
-      status: [204, 400, 401, 404, 500],
+      status: [204, 400, 401, 403, 404, 500],
     }),
     async (ctx, next) => {
       const { sessionId } = ctx.guard.params;
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { fields } = ctx.accountCenter;
 
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      assertIdentityVerified(ctx);
 
       assertThat(
         fields.session === AccountCenterControlValue.Edit,
@@ -88,6 +85,8 @@ export default function accountSessionRoutes<T extends UserRouter>(
         scopes.has(UserScope.Sessions),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+
+      await assertFirstPartyClient(queries, clientId);
 
       const session = await provider.Session.findByUid(sessionId);
 

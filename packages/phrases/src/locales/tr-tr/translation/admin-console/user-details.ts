@@ -73,6 +73,9 @@ const user_details = {
   },
   mfa: {
     field_name: 'Çok faktörlü kimlik doğrulama',
+    require_mfa: 'MFA kurulumunu zorunlu kıl',
+    require_mfa_description:
+      'Bu kullanıcı oturum açmayı tamamlamadan önce en az bir MFA faktörü kurmalıdır. Kurulum atlanamaz.',
     field_description: 'Bu kullanıcı 2 adımlı kimlik doğrulama faktörlerini etkinleştirdi.',
     name_column: 'Çok Faktörlü Kimlik Doğrulama',
     field_description_empty:
@@ -97,6 +100,11 @@ const user_details = {
     'Bu kullanıcının yeniden etkinleştirmek istediğinizden emin misiniz? Böyle yapmak, bu kullanıcı için giriş girişimlerine izin verecektir.',
   reactivate_action: 'Yeniden Etkinleştir',
   user_reactivated: 'Kullanıcı yeniden etkinleştirildi.',
+  unlock_user: 'Kullanıcının kilidini aç',
+  unlock_user_reminder:
+    'Bu kullanıcının kilidini açmak istediğinizden emin misiniz? Bu işlem, başarısız oturum açma ve güvenlik doğrulama denemelerinden kaynaklanan tüm kilitleri temizler. Yalnızca kullanıcının kimliğini doğruladıysanız ve yetkisiz erişim girişimi olmadığından emin olduysanız manuel olarak kilidi açın.',
+  unlock_action: 'Kilidi aç',
+  user_unlocked: 'Kullanıcının kilidi açıldı.',
   roles: {
     name_column: 'Kullanıcı rolü',
     description_column: 'Açıklama',
@@ -185,7 +193,7 @@ const user_details = {
     access_created_at_column: 'Erişim oluşturulma zamanı',
     revoke_access_title: 'Erişim iptal edilsin mi?',
     revoke_access_description:
-      'Bu işlem uygulamanın bu kullanıcının hesabına tüm cihazlardaki erişimini iptal eder. Erişimi geri yüklemek için kullanıcı yeniden yetkilendirme yapmalıdır.',
+      'Bu işlem uygulamanın bu kullanıcının hesabına tüm cihazlardaki erişimini iptal eder. Erişimi geri yüklemek için kullanıcı yeniden yetkilendirme yapmalıdır. Daha önce verilmiş erişim belirteçleri süreleri dolana kadar geçerli kalabilir.',
   },
   connections: {
     title: 'Bağlantı',

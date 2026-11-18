@@ -35,6 +35,8 @@ const jwt_claims = {
   error_handling_tab: '錯誤處理',
   test_tab: '測試上下文',
   jwt_claims_description: '默認聲明會自動包含在 JWT 中，無法覆蓋。',
+  reserved_claims_description:
+    '`acr`、`amr` 和 `auth_time` 在用戶存取權杖中是保留聲明：Logto 一律自行推導這些值，並忽略使用這些鍵的自訂聲明。',
   user_data: {
     title: '用戶數據',
     subtitle: '使用 `context.user` 輸入參數提供重要用戶信息。',
@@ -91,6 +93,11 @@ const jwt_claims = {
     subtitle: '調整模擬權杖和用戶數據以進行測試。',
     run_button: '運行測試',
     result_title: '測試結果',
+  },
+  sandbox_warning: {
+    title: '腳本以伺服器權限運行',
+    description:
+      '在自託管的 Logto 中，此腳本與 Logto 本身運行在相同環境中：它可以讀取伺服器環境變數並存取你的內網服務。它沒有沙箱隔離。請僅向你信任可存取伺服器的人開放此頁面。',
   },
   form_error: {
     invalid_json: '無效的 JSON 格式',

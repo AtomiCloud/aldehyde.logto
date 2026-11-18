@@ -11,15 +11,11 @@ import {
 } from '@ac/apis/social';
 import ErrorPage from '@ac/components/ErrorPage';
 import GlobalLoading from '@ac/components/GlobalLoading';
-import {
-  getSocialAddRoute,
-  getSocialCallbackRoute,
-  getSocialChangeRoute,
-} from '@ac/constants/routes';
+import { getSocialAddRoute, getSocialChangeRoute } from '@ac/constants/routes';
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
+import useStepUp from '@ac/hooks/use-step-up';
 import { accountCenterBasePath } from '@ac/utils/account-center-route';
-import { canManageSocialIdentitiesWithoutVerification } from '@ac/utils/security-page';
 import { accountStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
@@ -39,14 +35,12 @@ const SocialCallback = () => {
     refreshUserInfo,
     setToast,
     userInfo,
-    verificationId,
-    setVerificationId,
   } = useContext(PageContext);
-  const canSkipVerification = canManageSocialIdentitiesWithoutVerification(userInfo);
   const verifySocialVerificationRequest = useApi(verifySocialVerification);
   const linkSocialIdentityRequest = useApi(linkSocialIdentity);
   const replaceSocialIdentityRequest = useApi(replaceSocialIdentity);
   const handleError = useErrorHandler();
+  const { requestStepUp } = useStepUp();
   const [startedConnectorId, setStartedConnectorId] = useState<string>();
 
   const connector = useMemo(
@@ -64,23 +58,13 @@ const SocialCallback = () => {
 
     await refreshUserInfo();
     setStartedConnectorId(undefined);
-    setVerificationId(undefined);
-    setToast(t('account_center.verification.verification_required'));
     navigate(
       storedSocialFlow?.mode === 'change'
         ? getSocialChangeRoute(connectorId)
         : getSocialAddRoute(connectorId),
       { replace: true }
     );
-  }, [
-    connectorId,
-    navigate,
-    refreshUserInfo,
-    setToast,
-    setVerificationId,
-    storedSocialFlow?.mode,
-    t,
-  ]);
+  }, [connectorId, navigate, refreshUserInfo, storedSocialFlow?.mode]);
 
   const finishLinkFlow = useCallback(async () => {
     if (!connectorId || !connectorName) {
@@ -95,11 +79,14 @@ const SocialCallback = () => {
   }, [connectorId, connectorName, navigate, refreshUserInfo]);
 
   useEffect(() => {
-    if (!connectorId || !connector || startedConnectorId === connectorId) {
-      return;
-    }
-
-    if (!verificationId && !canSkipVerification) {
+    if (
+      !accountCenterSettings?.enabled ||
+      accountCenterSettings.fields.social !== AccountCenterControlValue.Edit ||
+      !experienceSettings ||
+      !connectorId ||
+      !connector ||
+      startedConnectorId === connectorId
+    ) {
       return;
     }
 
@@ -128,6 +115,15 @@ const SocialCallback = () => {
     }
 
     const handleCallbackError = async (error: unknown, clearPendingVerification = true) => {
+      const route =
+        storedSocialFlow.mode === 'change'
+          ? `${accountCenterBasePath}${getSocialChangeRoute(connectorId)}`
+          : `${accountCenterBasePath}${getSocialAddRoute(connectorId)}`;
+
+      if (await requestStepUp(error, { type: 'enter-subpage' }, { route })) {
+        return;
+      }
+
       await handleError(error, {
         'verification_record.permission_denied': redirectToReverify,
         'user.social_account_exists_in_profile': async (requestError) => {
@@ -152,9 +148,7 @@ const SocialCallback = () => {
     };
 
     const completeCallback = async () => {
-      const redirectUri = `${window.location.origin}${accountCenterBasePath}${getSocialCallbackRoute(
-        connectorId
-      )}`;
+      const redirectUri = `${window.location.origin}/callback/${connectorId}`;
       const [verifyError] = await verifySocialVerificationRequest({
         verificationRecordId: storedSocialFlow.verificationRecordId,
         connectorData: {
@@ -175,20 +169,14 @@ const SocialCallback = () => {
       });
 
       if (storedSocialFlow.mode === 'change') {
-        const [error] = await replaceSocialIdentityRequest(
-          verificationId,
-          storedSocialFlow.verificationRecordId
-        );
+        const [error] = await replaceSocialIdentityRequest(storedSocialFlow.verificationRecordId);
 
         if (error) {
           await handleCallbackError(error);
           return;
         }
       } else {
-        const [error] = await linkSocialIdentityRequest(
-          verificationId,
-          storedSocialFlow.verificationRecordId
-        );
+        const [error] = await linkSocialIdentityRequest(storedSocialFlow.verificationRecordId);
 
         if (error) {
           await handleCallbackError(error, false);
@@ -201,8 +189,10 @@ const SocialCallback = () => {
 
     void completeCallback();
   }, [
+    accountCenterSettings,
     connector,
     connectorId,
+    experienceSettings,
     finishLinkFlow,
     handleError,
     linkSocialIdentityRequest,
@@ -213,8 +203,7 @@ const SocialCallback = () => {
     setToast,
     startedConnectorId,
     storedSocialFlow,
-    canSkipVerification,
-    verificationId,
+    requestStepUp,
     verifySocialVerificationRequest,
     t,
   ]);

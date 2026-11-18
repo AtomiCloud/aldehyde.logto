@@ -2,6 +2,7 @@ import {
   AccountCenterControlValue,
   type AccountCenter as AccountCenterConfig,
   type AccountCenterProfileFields,
+  type CrossOriginOpenerPolicy,
   type CustomUiCsp,
   type SignUp,
   type SignInExperience,
@@ -9,6 +10,7 @@ import {
   type SignUpIdentifier as SignUpIdentifierMethod,
   type SignUpProfileFields,
   type AccountCenterFieldControl,
+  defaultMaximumAuthenticationAgeInSeconds,
 } from '@logto/schemas';
 
 /**
@@ -19,6 +21,7 @@ type OmittedSignInExperienceKeys = keyof Pick<
   SignInExperience,
   | 'mfa'
   | 'adaptiveMfa'
+  | 'trustedDevice'
   | 'captchaPolicy'
   | 'sentinelPolicy'
   | 'passwordPolicy'
@@ -35,7 +38,25 @@ export enum SignInExperienceTab {
   Content = 'content',
 }
 
-const accountCenterFieldKeys: Array<keyof AccountCenterFieldControl> = [
+export type AccountCenterFieldKey = keyof Pick<
+  AccountCenterFieldControl,
+  | 'email'
+  | 'phone'
+  | 'social'
+  | 'password'
+  | 'mfa'
+  | 'passkey'
+  | 'username'
+  | 'name'
+  | 'avatar'
+  | 'profile'
+  | 'customData'
+  | 'session'
+  | 'trustedDevice'
+  | 'personalAccessToken'
+>;
+
+const accountCenterFieldKeys: AccountCenterFieldKey[] = [
   'email',
   'phone',
   'social',
@@ -48,9 +69,9 @@ const accountCenterFieldKeys: Array<keyof AccountCenterFieldControl> = [
   'profile',
   'customData',
   'session',
+  'trustedDevice',
+  'personalAccessToken',
 ] as const;
-
-export type AccountCenterFieldKey = (typeof accountCenterFieldKeys)[number];
 
 export type AccountCenterFormValues = {
   enabled: boolean;
@@ -63,10 +84,16 @@ export type AccountCenterFormValues = {
    * the form is initialized (see `convertAccountCenterToForm`).
    */
   profileFields: AccountCenterProfileFields;
+  /** How recent a sign-in must be for the Account API, edited in minutes and saved in seconds. */
+  maximumAuthenticationAgeInMinutes: number;
+  /** The stored value in seconds, so an untouched field is never truncated by the minute input. */
+  originalMaximumAuthenticationAgeInSeconds: number;
 };
 
 const createDefaultAccountCenterFormValues = (): AccountCenterFormValues => ({
   enabled: false,
+  maximumAuthenticationAgeInMinutes: defaultMaximumAuthenticationAgeInSeconds / 60,
+  originalMaximumAuthenticationAgeInSeconds: defaultMaximumAuthenticationAgeInSeconds,
   // eslint-disable-next-line no-restricted-syntax
   fields: Object.fromEntries(
     accountCenterFieldKeys.map((key) => [key, AccountCenterControlValue.Off])
@@ -93,19 +120,34 @@ export const convertAccountCenterToForm = (
   deleteAccountUrl: normalizeDeleteAccountUrl(accountCenter?.deleteAccountUrl ?? undefined),
   customCss: accountCenter?.customCss ?? undefined,
   profileFields: accountCenter?.profileFields ?? [],
+  maximumAuthenticationAgeInMinutes: Math.floor(
+    (accountCenter?.maximumAuthenticationAgeInSeconds ?? defaultMaximumAuthenticationAgeInSeconds) /
+      60
+  ),
+  originalMaximumAuthenticationAgeInSeconds:
+    accountCenter?.maximumAuthenticationAgeInSeconds ?? defaultMaximumAuthenticationAgeInSeconds,
 });
 
 export const normalizeAccountCenterFieldsForSubmit = (
   fields: AccountCenterFormValues['fields'],
   originalFields?: AccountCenterConfig['fields']
 ): AccountCenterFieldControl => {
-  const { passkey, ...fieldsWithoutPasskey } = fields;
+  const { passkey, trustedDevice, personalAccessToken, ...stableFields } = fields;
 
-  if (originalFields?.passkey === undefined && passkey === AccountCenterControlValue.Off) {
-    return fieldsWithoutPasskey;
-  }
-
-  return fields;
+  return {
+    ...stableFields,
+    ...(originalFields?.passkey !== undefined || passkey !== AccountCenterControlValue.Off
+      ? { passkey }
+      : {}),
+    ...(originalFields?.trustedDevice !== undefined ||
+    trustedDevice !== AccountCenterControlValue.Off
+      ? { trustedDevice }
+      : {}),
+    ...(originalFields?.personalAccessToken !== undefined ||
+    personalAccessToken !== AccountCenterControlValue.Off
+      ? { personalAccessToken }
+      : {}),
+  };
 };
 
 /**
@@ -156,6 +198,14 @@ export type SignInExperienceForm = Omit<
   createAccountEnabled: boolean;
 };
 
+/**
+ * The full sign-in experience page form: the sign-in experience itself and the Account Center
+ * config, which now also carries the recent-authentication window.
+ */
+export type SignInExperiencePageForm = SignInExperienceForm & {
+  accountCenter: AccountCenterFormValues;
+};
+
 export type SignInMethod = SignInExperience['signIn']['methods'][number];
 
 export type SignInMethodsObject = Record<
@@ -174,8 +224,9 @@ export type SignInMethodsObject = Record<
  */
 export type SignInExperiencePageManagedData = Omit<
   SignInExperience,
-  OmittedSignInExperienceKeys | 'customUiCsp' | 'hideLogtoBranding'
+  OmittedSignInExperienceKeys | 'customUiCsp' | 'crossOriginOpenerPolicy' | 'hideLogtoBranding'
 > & {
   customUiCsp?: CustomUiCsp;
+  crossOriginOpenerPolicy?: CrossOriginOpenerPolicy;
   hideLogtoBranding?: boolean;
 };

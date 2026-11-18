@@ -1,10 +1,14 @@
 import { type LogtoJwtTokenKeyType } from '@logto/schemas';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
 import DetailsPage from '@/components/DetailsPage';
 import EmptyDataPlaceholder from '@/components/EmptyDataPlaceholder';
-import { type Action } from '@/pages/CustomizeJwt/utils/type';
+import { isCloud } from '@/consts/env';
+import InlineNotification from '@/ds-components/InlineNotification';
+import useCurrentTenantScopes from '@/hooks/use-current-tenant-scopes';
+import { Action } from '@/pages/CustomizeJwt/utils/type';
 
 import { CodeEditorLoadingContext } from './CodeEditorLoadingContext';
 import MainContent from './MainContent';
@@ -19,6 +23,7 @@ type Props = {
 };
 
 function Content({ tokenType, action }: Props) {
+  const { t } = useTranslation(undefined, { keyPrefix: 'admin_console' });
   const { isLoading, error, ...rest } = useDataFetch(tokenType, action);
 
   const [isMonacoLoaded, setIsMonacoLoaded] = useState(false);
@@ -27,6 +32,9 @@ function Content({ tokenType, action }: Props) {
     () => ({ isMonacoLoaded, setIsMonacoLoaded }),
     [isMonacoLoaded]
   );
+
+  // Self-hosted scripts are not sandboxed; hide on Cloud (Dynamic Workers).
+  const shouldShowSandboxWarning = !isCloud;
 
   return (
     <DetailsPage
@@ -38,6 +46,16 @@ function Content({ tokenType, action }: Props) {
 
       {!isLoading && (
         <CodeEditorLoadingContext.Provider value={codeEditorContextValue}>
+          {shouldShowSandboxWarning && (
+            <InlineNotification
+              hasIcon
+              severity="alert"
+              className={isMonacoLoaded ? undefined : styles.hidden}
+            >
+              <div className={styles.warningTitle}>{t('jwt_claims.sandbox_warning.title')}</div>
+              <div>{t('jwt_claims.sandbox_warning.description')}</div>
+            </InlineNotification>
+          )}
           <MainContent
             action={action}
             token={tokenType}
@@ -53,10 +71,13 @@ function Content({ tokenType, action }: Props) {
 // Guard the parameters to ensure they are valid
 function CustomizeJwtDetails() {
   const { tokenType, action } = useParams();
+  const {
+    access: { isReadOnly },
+  } = useCurrentTenantScopes();
 
   const params = pageParamsGuard.safeParse({ tokenType, action });
 
-  if (!params.success) {
+  if (!params.success || (isReadOnly && params.data.action === Action.Create)) {
     return <EmptyDataPlaceholder />;
   }
 

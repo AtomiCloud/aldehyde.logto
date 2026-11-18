@@ -15,11 +15,14 @@ const connector = {
     'Impossibile trovare il modello corretto nella configurazione del connettore.',
   template_not_supported: 'Il connettore non supporta questo tipo di modello.',
   rate_limit_exceeded: 'Limite di frequenza attivato. Riprova più tardi.',
+  usage_limit_exceeded: 'È stato raggiunto il limite di utilizzo del servizio email.',
   not_implemented: '{{method}}: non è stato ancora implementato.',
   social_invalid_access_token: 'Il token di accesso del connettore non è valido.',
   invalid_auth_code: 'Il codice di autenticazione del connettore non è valido.',
   social_invalid_id_token: 'Il token ID del connettore non è valido.',
   authorization_failed: "Il processo di autorizzazione dell'utente non è riuscito.",
+  social_provider_unreachable:
+    'Impossibile raggiungere il provider social ({{reason}}). Riprova più tardi.',
   social_auth_code_invalid:
     'Impossibile ottenere il token di accesso, controllare il codice di autorizzazione.',
   more_than_one_sms: 'Il numero di connettori SMS è maggiore di 1.',

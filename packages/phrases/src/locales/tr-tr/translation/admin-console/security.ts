@@ -36,6 +36,16 @@ const security = {
       description:
         "Cloudflare'in akıllı CAPTCHA alternatifi, görsel bulmaca olmadan kullanıcı dostu bir deneyim sunarken aynı zamanda bot koruması sağlar.",
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'Görsel bulmaca veya üçüncü taraf hizmet gerektirmeyen, iş kanıtı tabanlı, açık kaynaklı ve kendi sunucunuzda barındırılan CAPTCHA; diğer CAPTCHA hizmetlerine erişilemeyen bölgeler için idealdir.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'Yerelleştirilmiş sorgulamalar ve anakara Çin’de güçlü performans sunan GeeTest uyarlanabilir CAPTCHA.',
+    },
   },
   captcha_details: {
     back_to_security: 'Güvenliğe dön',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com (varsayılan) veya recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA anahtar ID',
     recaptcha_api_key: 'Projenin API anahtarı',
+    cap_endpoint: 'Cap uç noktası',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'Bu uç nokta HTTP kullanıyor ve yalnızca yerel geliştirme için uygundur. Tarayıcılar HTTPS oturum açma sayfasından yapılan HTTP isteklerini engeller ve gizli anahtar şifrelenmeden gönderilir. Üretimde HTTPS kullanın.',
+    geetest_captcha_id: 'CAPTCHA Kimliği',
+    geetest_captcha_key: 'CAPTCHA Anahtarı',
     deletion_description: 'Bu CAPTCHA sağlayıcısını silmek istediğinizden emin misiniz?',
     captcha_deleted: 'CAPTCHA sağlayıcısı başarıyla silindi',
     setup_captcha: "CAPTCHA'yı ayarla",
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: 'Onay kutusu',
     mode_notice:
       "Doğrulama modu, Google Cloud Console'daki reCAPTCHA anahtar ayarlarında tanımlanır. Buradaki modu değiştirmek için eşleşen bir anahtar türü gerekir.",
+    score_threshold: 'Puan eşiği',
+    score_threshold_description:
+      "Eşiğin altındaki puanlar reddedilir. 0.0 tümünü kabul eder, 1.0 yalnızca mükemmel puanları kabul eder. Varsayılan değer 0.5'tir.",
+    score_threshold_error: 'Puan eşiği 0 ile 1 arasında olmalıdır.',
   },
   password_policy: {
     password_requirements: 'Parola gereksinimleri',
@@ -147,23 +167,44 @@ const security = {
     manual_unlock: {
       title: 'Manuel kilit açma',
       description:
-        'Kullanıcının kimliğini doğrulayıp kimliklerini girdikten sonra anında kilidi açın.',
-      unblock_by_identifiers: 'Kimlik ile engeli kaldır',
+        "Kullanıcının kimliğini doğrulayıp tanımlayıcısını veya kullanıcı ID'sini girdikten sonra anında kilidi açın.",
+      unblock_by_identifiers: "Tanımlayıcı veya kullanıcı ID'si ile engeli kaldır",
       modal_description_1:
-        'Bir kimlik, birden fazla başarısız oturum açma/kayıt olma denemesi nedeniyle geçici olarak kilitlendi. Güvenliği korumak için, erişim kilitleme süresi bittikten sonra otomatik olarak geri yüklenecektir.',
+        "Bir tanımlayıcı veya kullanıcı ID'si, birden fazla başarısız oturum açma/kayıt olma veya güvenlik doğrulama denemesi nedeniyle geçici olarak kilitlendi. Güvenliği korumak için, erişim kilitleme süresi bittikten sonra otomatik olarak geri yüklenecektir.",
       modal_description_2:
         'Kullanıcının kimliğini doğrulayıp yetkisiz erişim denemesi olmadığından emin olduysanız yalnızca manuel olarak kilidi açın.',
-      placeholder: 'Kimlikleri girin (e-posta adresi / telefon numarası / kullanıcı adı)',
+      placeholder:
+        "Tanımlayıcıları veya kullanıcı ID'lerini girin (e-posta adresi / telefon numarası / kullanıcı adı / kullanıcı ID'si)",
       confirm_button_text: 'Şimdi kilidini aç',
       success_toast: 'Başarıyla kilidi açıldı',
-      duplicate_identifier_error: 'Kimlik zaten eklendi',
-      empty_identifier_error: 'Lütfen en az bir kimlik girin',
+      duplicate_identifier_error: "Tanımlayıcı veya kullanıcı ID'si zaten eklendi",
+      empty_identifier_error: "Lütfen en az bir tanımlayıcı veya kullanıcı ID'si girin",
     },
   },
   blocklist: {
     card_title: 'E-posta engelleme listesi',
     card_description:
       'Yüksek riskli veya istenmeyen e-posta adreslerini engelleyerek kullanıcı tabanınızı kontrol edin.',
+    custom_email_allowlist: {
+      title: 'Özel e-posta adreslerine izin ver',
+      description:
+        'Yeni kayıtlar ve yeni bağlanan e-postalar için yalnızca belirli e-posta alan adlarına, e-posta adreslerine veya joker karakterli kalıplara izin veren kurallar ekleyin. Örnekler: bar@example.com, @example.com, foo*@example.com, *@example.com. gmail.com ve googlemail.com alan adları eşdeğer kabul edilir ve yerel bölümdeki noktalar yok sayılır; bu nedenle foo.bar@gmail.com, foobar@googlemail.com ile eşleşir.',
+      placeholder: 'E-posta adresi, alan adı veya joker karakterli kalıp girin',
+      duplicate_error:
+        'E-posta adresi, alan adı veya joker karakterli e-posta kalıbı zaten eklendi',
+      invalid_format_error:
+        'Geçerli bir e-posta adresi (bar@example.com), alan adı (@example.com) veya joker karakterli e-posta kalıbı (foo*@example.com, *@example.com) olmalıdır',
+      warnings: {
+        identical_entries:
+          'Bazı izin listesi girdileri engelleme kurallarında da bulunuyor. Eşleşen e-postalar yine de engellenebilir.',
+        blocked_exact_email:
+          'Bazı tam izin listesi e-postaları bir engelleme kuralıyla eşleşiyor. Eşleşen e-postalar yine de engellenebilir.',
+        blocked_subaddressing:
+          'Bazı izin listesi girdileri artı işareti (+) içeriyor, ancak e-posta alt adresleme engellenmiş durumda.',
+        effectively_unusable:
+          'Bu kontrollere göre mevcut izin listesi hiçbir yeni e-postanın geçmesine izin vermeyebilir.',
+      },
+    },
     disposable_email: {
       title: 'Geçici e-posta adreslerini engelle',
       description:
@@ -177,12 +218,12 @@ const security = {
     custom_email_address: {
       title: 'Özel e-posta adreslerini engelle',
       description:
-        'Belirli e-posta alan adlarını veya kullanıcı arayüzü aracılığıyla kaydolamayacak veya bağlantı kuramayacak e-posta adreslerini ekleyin.',
-      placeholder:
-        'Engellenen e-posta adresini veya alan adını girin (örn., bar@example.com, @example.com)',
-      duplicate_error: 'E-posta adresi veya alan adı zaten eklendi',
+        'Belirli e-posta alan adlarının, e-posta adreslerinin veya joker karakterli kalıpların kullanıcı arayüzü aracılığıyla kaydolmasını veya bağlantı kurmasını engelleyen kurallar ekleyin. Örnekler: bar@example.com, @example.com, foo*@example.com, *@example.com. gmail.com ve googlemail.com alan adları eşdeğer kabul edilir ve yerel bölümdeki noktalar yok sayılır; bu nedenle foo.bar@gmail.com, foobar@googlemail.com ile eşleşir.',
+      placeholder: 'E-posta adresi, alan adı veya joker karakterli kalıp girin',
+      duplicate_error:
+        'E-posta adresi, alan adı veya joker karakterli e-posta adresi kalıbı zaten eklendi',
       invalid_format_error:
-        'Geçerli bir e-posta adresi (bar@example.com) veya alan adı (@example.com) olmalıdır',
+        'Geçerli bir e-posta adresi (bar@example.com), alan adı (@example.com) veya joker karakterli e-posta adresi kalıbı (foo*@example.com, *@example.com) olmalıdır',
     },
   },
 };

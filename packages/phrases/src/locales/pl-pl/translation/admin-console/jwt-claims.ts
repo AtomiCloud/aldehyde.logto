@@ -40,6 +40,8 @@ const jwt_claims = {
   test_tab: 'Kontekst testowy',
   jwt_claims_description:
     'Domyślne roszczenia są automatycznie dołączane do JWT i nie mogą być nadpisane.',
+  reserved_claims_description:
+    '`acr`, `amr` i `auth_time` są zarezerwowane w tokenach dostępowych użytkownika: Logto zawsze je wyznacza i ignoruje niestandardowe roszczenia używające tych kluczy.',
   user_data: {
     title: 'Dane użytkownika',
     subtitle:
@@ -104,6 +106,11 @@ const jwt_claims = {
     subtitle: 'Dostosuj fałszywy token i dane użytkownika do testowania.',
     run_button: 'Uruchom test',
     result_title: 'Wynik testu',
+  },
+  sandbox_warning: {
+    title: 'Skrypty działają z uprawnieniami serwera',
+    description:
+      'W samodzielnie hostowanym Logto ten skrypt działa w tym samym środowisku co samo Logto: może odczytywać zmienne środowiskowe serwera i osiągać usługi w Twojej sieci wewnętrznej. Nie jest w piaskownicy. Udostępniaj tę stronę tylko osobom, którym zaufałbyś dostęp do serwera.',
   },
   form_error: {
     invalid_json: 'Nieprawidłowy format JSON',

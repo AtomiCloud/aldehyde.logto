@@ -1,5 +1,61 @@
 # Change Log
 
+## 1.16.0
+
+### Minor Changes
+
+- 22967f6: add the `confirm_redirect_policy` sign-in parameter to show a "Continue" page before returning to the app
+
+  On iOS, `ASWebAuthenticationSession` closes as soon as it sees the app callback URL, so the system "Save Password" prompt is dismissed right after the user signs in with a password. Pass `confirm_redirect_policy=password` in the authorization request to show a "Return to the app" page after the user entered a password in the sign-in experience (password sign-in, password registration, setting a password, or a step-up password verification). The page returns to the app only when the user selects "Continue".
+
+  Omit the parameter to keep redirecting back to the app right away. Third-party applications ignore it, because they usually show a consent page that already holds the session open.
+
+- 9d7d323: add Sign-In with Ethereum (SIWE / EIP-4361) for EVM wallets
+
+  Administrators can enable an Ethereum Wallet social connector. Users with an injected EIP-1193 wallet can sign a one-time SIWE message without leaving the sign-in page. A single address works across supported EVM chains, and administrators can restrict the allowed chain IDs.
+
+### Patch Changes
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- Updated dependencies [d89e507]
+- Updated dependencies [9193c59]
+  - @logto/core-kit@2.14.0
+
+## 1.15.0
+
+### Minor Changes
+
+- c377946617: add a user menu with sign out to the Account Center header
+- 7464c6a97a: add es-MX (Spanish, Mexico) support to the sign-in experience, with the phone input defaulting to the Mexico (+52) country code for users whose language is Spanish (Mexico)
+
+  also fix the list formatter placeholders and the remaining untranslated MFA message in the Spanish locales
+
+- 8b2aaab9b0: add dynamic app support (OAuth Client ID Metadata Documents)
+
+  The dynamic app lets compatible public clients, such as MCP clients, connect to your tenant without registering an application. Following the OAuth Client ID Metadata Documents (CIMD) draft, such a client presents a public HTTPS URL as its `client_id`, and Logto fetches the client metadata from that URL.
+
+  Enable it from the dynamic app card in the third-party app section on the create application page in Console. The switch is tenant-level and off by default, and requires the OIDC provider SSRF protection to be active. Control what dynamic app clients can request with the permission settings on the dynamic app page.
+
+### Patch Changes
+
+- Updated dependencies [ebfefb513d]
+- Updated dependencies [ab106cdb82]
+- Updated dependencies [7464c6a97a]
+- Updated dependencies [28c3c9283e]
+  - @logto/core-kit@2.13.0
+  - @logto/language-kit@1.4.0
+
+## 1.14.1
+
+### Patch Changes
+
+- Updated dependencies [af678dd84]
+- Updated dependencies [1650be05e]
+  - @logto/core-kit@2.12.0
+
 ## 1.14.0
 
 ### Minor Changes

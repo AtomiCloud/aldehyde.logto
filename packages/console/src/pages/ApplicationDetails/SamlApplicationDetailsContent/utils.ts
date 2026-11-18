@@ -1,7 +1,10 @@
 import {
   BindingType,
+  isSamlForceAuthnEnabled,
   type PatchSamlApplication,
   type SamlApplicationResponse,
+  type SamlStaticAttributes,
+  samlStaticAttributesGuard,
 } from '@logto/schemas';
 import { cond, removeUndefinedKeys } from '@silverhand/essentials';
 
@@ -10,7 +13,8 @@ import { type SamlApplicationFormData } from './Settings';
 export const parseSamlApplicationResponseToFormData = (
   data: SamlApplicationResponse
 ): SamlApplicationFormData => {
-  const { id, description, name, entityId, acsUrl, encryption, nameIdFormat } = data;
+  const { id, description, name, entityId, acsUrl, encryption, nameIdFormat, authnRequestConfig } =
+    data;
 
   return {
     id,
@@ -22,11 +26,14 @@ export const parseSamlApplicationResponseToFormData = (
     encryptSamlAssertion: encryption?.encryptAssertion ?? false,
     encryptThenSignSamlAssertion: encryption?.encryptThenSign ?? false,
     certificate: encryption?.certificate ?? '',
+    forceAuthn: isSamlForceAuthnEnabled(authnRequestConfig),
   };
 };
 
 export const parseFormDataToSamlApplicationRequest = (
-  data: SamlApplicationFormData
+  data: SamlApplicationFormData,
+  /** PATCH replaces `authnRequestConfig`, so settings the form does not edit are carried over. */
+  authnRequestConfig: SamlApplicationResponse['authnRequestConfig']
 ): {
   id: string;
   payload: PatchSamlApplication;
@@ -41,6 +48,7 @@ export const parseFormDataToSamlApplicationRequest = (
     encryptThenSignSamlAssertion,
     certificate,
     nameIdFormat,
+    forceAuthn,
   } = data;
 
   // If acsUrl value is empty string, it should be removed. Convert it to null.
@@ -54,6 +62,7 @@ export const parseFormDataToSamlApplicationRequest = (
       entityId,
       acsUrl: acsUrlData,
       nameIdFormat,
+      authnRequestConfig: { ...authnRequestConfig, forceAuthn },
       ...cond(
         encryptSamlAssertion
           ? cond(
@@ -72,6 +81,56 @@ export const parseFormDataToSamlApplicationRequest = (
     }),
   };
 };
+
+export type StaticAttributeFormRow = {
+  key: string;
+  value: string;
+};
+
+export const parseStaticAttributesToFormData = (
+  staticAttributes: SamlStaticAttributes
+): StaticAttributeFormRow[] => {
+  const rows = Object.entries(staticAttributes).map(([key, value]) => ({ key, value }));
+  return rows.length > 0 ? rows : [{ key: '', value: '' }];
+};
+
+export const parseFormDataToStaticAttributes = (
+  rows: StaticAttributeFormRow[]
+): SamlStaticAttributes =>
+  Object.fromEntries(
+    rows.filter(({ key, value }) => key || value).map(({ key, value }) => [key, value])
+  );
+
+type StaticAttributeError =
+  | 'key_missing_error'
+  | 'key_duplicated_error'
+  | 'invalid_key_error'
+  | 'value_missing_error';
+
+export const getStaticAttributeKeyError = (
+  rows: StaticAttributeFormRow[],
+  index: number
+): StaticAttributeError | undefined => {
+  const { key = '', value = '' } = rows[index] ?? {};
+
+  if (!key) {
+    return value ? 'key_missing_error' : undefined;
+  }
+
+  if (rows.filter((row) => row.key === key).length > 1) {
+    return 'key_duplicated_error';
+  }
+
+  return samlStaticAttributesGuard.keySchema.safeParse(key).success
+    ? undefined
+    : 'invalid_key_error';
+};
+
+export const getStaticAttributeValueError = (
+  rows: StaticAttributeFormRow[],
+  index: number
+): StaticAttributeError | undefined =>
+  rows[index]?.key && !rows[index]?.value ? 'value_missing_error' : undefined;
 
 export const buildSamlSigningCertificateFilename = (appId: string, id: string) =>
   `${appId}-saml-certificate-${id}`;

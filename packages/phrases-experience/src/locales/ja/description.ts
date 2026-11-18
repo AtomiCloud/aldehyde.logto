@@ -37,6 +37,8 @@ const description = {
   reset_password: 'パスワードを再設定する',
   reset_password_description:
     'アカウントに関連する{{types, list(type: disjunction;)}}を入力すると、パスワードの再設定に必要な確認コードが送信されます。',
+  reset_password_magic_link_description:
+    'パスワードのリセットを続行するには、アカウントに関連付けられたメールアドレスを入力してください。',
   new_password: '新しいパスワード',
   set_password: 'パスワードを設定する',
   password_changed: 'パスワードが変更されました',
@@ -99,6 +101,8 @@ const description = {
     'あなたの企業は、メールアカウント{{email}}に対してシングルサインオンを有効にしました。以下のSSOプロバイダーを使用してサインインを続けることができます。',
   single_sign_on_enabled: 'このアカウントではシングル サインオンが有効になっています',
   authorize_title: '{{name}} を承認する',
+  unregistered_client_notice:
+    'このアプリは名前とロゴを含めて <hostname>{{host}}</hostname> による自己申告です。続行する前にホスト名をご確認ください。',
   request_permission: '{{name}} が以下へのアクセスを要求しています：',
   grant_organization_access: '組織へのアクセスを許可する：',
   authorize_personal_data_usage: '個人データの使用を承認する：',
@@ -124,6 +128,8 @@ const description = {
   switch_account_title: '現在 {{account}} としてサインインしています',
   switch_account_description:
     '続行するには、現在のアカウントからサインアウトし、新しいアカウントに自動的に切り替わります。',
+  continue_to_app_title: 'アプリに戻る',
+  continue_to_app_description: '続行してアプリに戻ります。',
   about_yourself: 'あなたについて教えてください',
   verify_identity: '本人確認を行う',
   choose_verification_method: 'サインイン方法を選択してください',
@@ -136,6 +142,7 @@ const description = {
     phone_verification_code: '電話認証コード',
     verification_code_description: '{{target}}に送信',
   },
+  select_wallet: 'ウォレットを選択',
 };
 
 export default Object.freeze(description);

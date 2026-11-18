@@ -22,6 +22,9 @@
         "responses": {
           "200": {
             "description": "A new identity is linked to the user."
+          },
+          "401": {
+            "description": "The user declined the authorization or cancelled at the social provider (`connector.authorization_failed`, with the provider's `error` and `error_description`)."
           }
         },
         "summary": "Link social identity to user",
@@ -33,7 +36,18 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "The identity is deleted from the user."
+            "description": "The identity is deleted from the user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "cimdClientId": {
+                      "description": "The identifier of the CIMD (client ID metadata document) client from the user's first consent. `null` unless the user's first consent was granted to a CIMD client. Mutually exclusive with `applicationId`."
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Delete social identity from user",

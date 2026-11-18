@@ -75,6 +75,9 @@ const user_details = {
   },
   mfa: {
     field_name: 'Autenticazione a due fattori',
+    require_mfa: 'Richiedi configurazione MFA',
+    require_mfa_description:
+      "Questo utente deve configurare almeno un fattore MFA prima di completare l'accesso. Non può saltare la configurazione.",
     field_description: 'Questo utente ha abilitato fattori di autenticazione a 2 passaggi.',
     name_column: 'Autenticazione a due fattori',
     field_description_empty:
@@ -99,6 +102,11 @@ const user_details = {
     'Sei sicuro di voler riattivare questo utente? Ciò consentirà eventuali tentativi di accesso per questo utente.',
   reactivate_action: 'Riattiva',
   user_reactivated: "L'utente è stato riattivato.",
+  unlock_user: "Sblocca l'utente",
+  unlock_user_reminder:
+    "Sei sicuro di voler sbloccare questo utente? Questa operazione cancellerà tutti i blocchi causati da tentativi falliti di accesso e verifica di sicurezza. Sblocca manualmente solo se hai confermato l'identità dell'utente e verificato che non ci siano stati tentativi di accesso non autorizzati.",
+  unlock_action: 'Sblocca',
+  user_unlocked: "L'utente è stato sbloccato.",
   roles: {
     name_column: 'Ruolo utente',
     description_column: 'Descrizione',
@@ -185,7 +193,7 @@ const user_details = {
     access_created_at_column: 'Accesso creato il',
     revoke_access_title: 'Revocare accesso?',
     revoke_access_description:
-      "Questa azione revoca l'accesso dell'app all'account di questo utente su tutti i dispositivi. L'utente dovrà autorizzarla di nuovo per ripristinare l'accesso.",
+      "Questa azione revoca l'accesso dell'app all'account di questo utente su tutti i dispositivi. L'utente dovrà autorizzarla di nuovo per ripristinare l'accesso. I token di accesso già emessi potrebbero restare validi fino alla loro scadenza.",
   },
   connections: {
     title: 'Connessione',

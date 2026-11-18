@@ -8,7 +8,7 @@ import {
   messageRateLimitOverrideGuard,
 } from '../../consts/message-rate-limit.js';
 
-import { type InlineHook, LogtoInlineHookKey, inlineHookGuard } from './inline-hook.js';
+import { type LogtoAction, LogtoActionKey, logtoActionGuard } from './action.js';
 import {
   type AccessTokenJwtCustomizer,
   type ClientCredentialsJwtCustomizer,
@@ -18,7 +18,7 @@ import {
 
 export * from './oidc-provider.js';
 export * from './jwt-customizer.js';
-export * from './inline-hook.js';
+export * from './action.js';
 
 /**
  * Logto OIDC signing key types, used mainly in REST API routes.
@@ -105,16 +105,16 @@ export const jwtCustomizerConfigGuard: Readonly<{
   [LogtoJwtTokenKey.ClientCredentials]: clientCredentialsJwtCustomizerGuard,
 });
 
-export type InlineHookType = {
-  [LogtoInlineHookKey.PostFirstFactorVerification]: InlineHook;
-  [LogtoInlineHookKey.PostSignIn]: InlineHook;
+export type ActionType = {
+  [LogtoActionKey.PostFirstFactorVerification]: LogtoAction;
+  [LogtoActionKey.PostSignIn]: LogtoAction;
 };
 
-export const inlineHookConfigGuard: Readonly<{
-  [key in LogtoInlineHookKey]: ZodType<InlineHookType[key]>;
+export const actionConfigGuard: Readonly<{
+  [key in LogtoActionKey]: ZodType<ActionType[key]>;
 }> = Object.freeze({
-  [LogtoInlineHookKey.PostFirstFactorVerification]: inlineHookGuard,
-  [LogtoInlineHookKey.PostSignIn]: inlineHookGuard,
+  [LogtoActionKey.PostFirstFactorVerification]: logtoActionGuard,
+  [LogtoActionKey.PostSignIn]: logtoActionGuard,
 });
 
 export const jwtCustomizerConfigsGuard = z.discriminatedUnion('key', [
@@ -181,6 +181,20 @@ export const signingKeyRotationStateGuard = z.object({
 });
 export type SigningKeyRotationState = z.infer<typeof signingKeyRotationStateGuard>;
 
+/* --- CIMD Config --- */
+/**
+ * Config for the OAuth Client ID Metadata Document (CIMD) feature. The row is only written once
+ * the feature is toggled, so readers must fall back to {@link defaultCimdConfig}.
+ */
+export const cimdConfigGuard = z.object({
+  enabled: z.boolean(),
+  addConsentPromptForOfflineAccess: z.boolean().optional(),
+});
+export type CimdConfig = z.infer<typeof cimdConfigGuard>;
+
+/** Applied when the `cimd` row is absent: the feature is opt-in per tenant. */
+export const defaultCimdConfig = Object.freeze({ enabled: false } satisfies CimdConfig);
+
 export enum LogtoTenantConfigKey {
   AdminConsole = 'adminConsole',
   CloudConnection = 'cloudConnection',
@@ -192,6 +206,8 @@ export enum LogtoTenantConfigKey {
   SigningKeyRotationState = 'signingKeyRotationState',
   /** Internal, ops-only override of the system message send-rate-limit policy. Not exposed by any API. */
   MessageRateLimitOverride = 'messageRateLimitOverride',
+  /** Tenant-level switch for the OAuth Client ID Metadata Document feature. */
+  Cimd = 'cimd',
 }
 export type LogtoTenantConfigType = {
   [LogtoTenantConfigKey.AdminConsole]: AdminConsoleData;
@@ -200,6 +216,7 @@ export type LogtoTenantConfigType = {
   [LogtoTenantConfigKey.IdToken]: IdTokenConfig;
   [LogtoTenantConfigKey.SigningKeyRotationState]: SigningKeyRotationState;
   [LogtoTenantConfigKey.MessageRateLimitOverride]: MessageRateLimitOverride;
+  [LogtoTenantConfigKey.Cimd]: CimdConfig;
 };
 
 export const logtoTenantConfigGuard: Readonly<{
@@ -211,35 +228,36 @@ export const logtoTenantConfigGuard: Readonly<{
   [LogtoTenantConfigKey.IdToken]: idTokenConfigGuard,
   [LogtoTenantConfigKey.SigningKeyRotationState]: signingKeyRotationStateGuard,
   [LogtoTenantConfigKey.MessageRateLimitOverride]: messageRateLimitOverrideGuard,
+  [LogtoTenantConfigKey.Cimd]: cimdConfigGuard,
 });
 
 /* --- Summary --- */
 export type LogtoConfigKey =
   | LogtoOidcConfigKey
   | LogtoJwtTokenKey
-  | LogtoInlineHookKey
+  | LogtoActionKey
   | LogtoTenantConfigKey;
 export type LogtoConfigType =
   | LogtoOidcConfigType
   | JwtCustomizerType
-  | InlineHookType
+  | ActionType
   | LogtoTenantConfigType;
 export type LogtoConfigGuard = typeof logtoOidcConfigGuard &
   typeof jwtCustomizerConfigGuard &
-  typeof inlineHookConfigGuard &
+  typeof actionConfigGuard &
   typeof logtoTenantConfigGuard;
 
 export const logtoConfigKeys: readonly LogtoConfigKey[] = Object.freeze([
   ...Object.values(LogtoOidcConfigKey),
   ...Object.values(LogtoJwtTokenKey),
-  ...Object.values(LogtoInlineHookKey),
+  ...Object.values(LogtoActionKey),
   ...Object.values(LogtoTenantConfigKey),
 ]);
 
 export const logtoConfigGuards: LogtoConfigGuard = Object.freeze({
   ...logtoOidcConfigGuard,
   ...jwtCustomizerConfigGuard,
-  ...inlineHookConfigGuard,
+  ...actionConfigGuard,
   ...logtoTenantConfigGuard,
 });
 

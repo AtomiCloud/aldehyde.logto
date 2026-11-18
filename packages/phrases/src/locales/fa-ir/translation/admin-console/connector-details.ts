@@ -38,6 +38,19 @@ const connector_details = {
     total_email_sent: 'مجموع ایمیل‌های ارسال‌شده: {{value, number}}',
     total_email_sent_tip:
       'Logto از SendGrid برای ایمیل داخلی امن و پایدار استفاده می‌کند. استفاده از آن کاملاً رایگان است. <a>بیشتر بدانید</a>',
+    hosted_email_usage: {
+      daily: 'روزانه <value>{{usage, number}}</value> / {{limit, number}}',
+      daily_unlimited: 'روزانه <value>{{usage, number}}</value>',
+      monthly: 'ماهانه <value>{{usage, number}}</value> / {{limit, number}}',
+      monthly_unlimited: 'ماهانه <value>{{usage, number}}</value>',
+      tip: 'طرح‌های Free و Development شامل محدودیت‌های روزانه و ماهانه سرویس ایمیل داخلی هستند.',
+      banner: {
+        approaching:
+          'شما به حد ارسال سرویس ایمیل داخلی Logto نزدیک می‌شوید. برای ادامه استفاده از سرویس ایمیل داخلی Logto، <provider>ارائه‌دهنده ایمیل خود را متصل کنید</provider> یا <upgrade>طرح خود را ارتقا دهید</upgrade>.',
+        reached:
+          'به حد ارسال سرویس ایمیل داخلی Logto رسیده‌اید که ممکن است ایمیل‌های ورود را مختل کند. برای ادامه استفاده از سرویس ایمیل داخلی Logto، <provider>ارائه‌دهنده ایمیل خود را متصل کنید</provider> یا <upgrade>طرح خود را ارتقا دهید</upgrade>.',
+      },
+    },
     email_template_title: 'قالب ایمیل',
     template_description:
       'ایمیل داخلی از قالب‌های پیش‌فرض برای تحویل یکپارچه ایمیل‌های تأیید استفاده می‌کند. هیچ پیکربندی لازم نیست و می‌توانید اطلاعات برند پایه را سفارشی کنید.',
@@ -72,6 +85,20 @@ const connector_details = {
   sign_in_experience: {
     in_use: 'برای ورود فعال است ',
     not_in_use: 'برای ورود غیرفعال است ',
+  },
+  email_logs: {
+    title: 'گزارش‌های ایمیل',
+    time: 'زمان',
+    recipient: 'گیرنده',
+    recipient_placeholder: 'جستجو با آدرس کامل گیرنده',
+    template_type: 'نوع قالب',
+    status: 'وضعیت',
+    status_sent: 'ارسال شد',
+    status_failed: 'ناموفق',
+    language_tag: 'زبان',
+    provider_message_id: 'شناسه پیام ارائه‌دهنده',
+    previous_page: 'قبلی',
+    next_page: 'بعدی',
   },
 };
 

@@ -1,8 +1,10 @@
+/* eslint-disable max-lines -- getFullSignInExperience cases share the library mocks set up in this file. */
 import type { LanguageTag } from '@logto/language-kit';
 import { builtInLanguages } from '@logto/phrases-experience';
 import {
   CaptchaType,
   ForgotPasswordMethod,
+  ossDefaultQuota,
   type CreateSignInExperience,
   type SignInExperience,
 } from '@logto/schemas';
@@ -22,7 +24,9 @@ import {
   wellConfiguredSsoConnector,
 } from '#src/__mocks__/index.js';
 import { WellKnownCache } from '#src/caches/well-known.js';
+import { EnvSet } from '#src/env-set/index.js';
 import RequestError from '#src/errors/RequestError/index.js';
+import type { SubscriptionLibrary } from '#src/libraries/subscription.js';
 import { ssoConnectorFactories } from '#src/sso/index.js';
 import { mockSsoConnectorLibrary } from '#src/test-utils/mock-libraries.js';
 
@@ -72,6 +76,12 @@ const connectorLibrary = createConnectorLibrary(queries, {
 
 const getLogtoConnectors = jest.spyOn(connectorLibrary, 'getLogtoConnectors');
 
+const getSelfHostedSubscription = jest.fn(async () => ({
+  quota: { ...ossDefaultQuota, hideLogtoBranding: false as boolean },
+}));
+// Only the self-hosted entitlement reader is used by the sign-in experience library.
+const subscription = { getSelfHostedSubscription } as unknown as SubscriptionLibrary;
+
 const { createSignInExperienceLibrary, getForgotPasswordAvailability } = await import('./index.js');
 const {
   validateLanguageInfo,
@@ -84,8 +94,21 @@ const {
   queries,
   connectorLibrary,
   mockSsoConnectorLibrary,
-  new WellKnownCache('foo', new TtlCache())
+  new WellKnownCache('foo', new TtlCache()),
+  subscription
 );
+
+const getPublicSignInExperience = (signInExperience: SignInExperience) => {
+  const {
+    emailBlocklistPolicy: _emailBlocklistPolicy,
+    forgotPasswordMethods: _forgotPasswordMethods,
+    ssoBrandingBeforeEmailMatch: _ssoBrandingBeforeEmailMatch,
+    crossOriginOpenerPolicy: _crossOriginOpenerPolicy,
+    ...publicSignInExperience
+  } = signInExperience;
+
+  return publicSignInExperience;
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -188,7 +211,7 @@ describe('getFullSignInExperience()', () => {
     const connectorFactory = ssoConnectorFactories[wellConfiguredSsoConnector.providerName];
 
     expect(fullSignInExperience).toStrictEqual({
-      ...mockSignInExperience,
+      ...getPublicSignInExperience(mockSignInExperience),
       socialConnectors: [],
       socialSignInConnectorTargets: ['github', 'facebook', 'wechat'],
       ssoConnectors: [
@@ -209,6 +232,7 @@ describe('getFullSignInExperience()', () => {
         phone: false,
       },
     });
+    expect(fullSignInExperience).not.toHaveProperty('emailBlocklistPolicy');
   });
 
   it('should return full sign-in experience with google one tap', async () => {
@@ -226,7 +250,7 @@ describe('getFullSignInExperience()', () => {
     const connectorFactory = ssoConnectorFactories[wellConfiguredSsoConnector.providerName];
 
     expect(fullSignInExperience).toStrictEqual({
-      ...mockSignInExperience,
+      ...getPublicSignInExperience(mockSignInExperience),
       socialConnectors: [
         { ...mockGithubConnector.metadata, id: mockGithubConnector.dbEntry.id },
         { ...mockGoogleConnector.metadata, id: mockGoogleConnector.dbEntry.id },
@@ -255,6 +279,52 @@ describe('getFullSignInExperience()', () => {
         phone: false,
       },
     });
+  });
+});
+
+const setIsCloud = (isCloud: boolean) => {
+  // eslint-disable-next-line @silverhand/fp/no-mutation -- Switch the environment under test.
+  (EnvSet.values as { isCloud: boolean }).isCloud = isCloud;
+};
+
+describe('getFullSignInExperience() hideLogtoBranding', () => {
+  const originalIsCloud = EnvSet.values.isCloud;
+
+  beforeEach(() => {
+    findDefaultSignInExperience.mockResolvedValueOnce({
+      ...mockSignInExperience,
+      hideLogtoBranding: true,
+    });
+    getLogtoConnectors.mockResolvedValueOnce([]);
+    findAllCustomProfileFields.mockResolvedValueOnce([]);
+    mockSsoConnectorLibrary.getAvailableSsoConnectors.mockResolvedValueOnce([]);
+  });
+
+  afterEach(() => {
+    setIsCloud(originalIsCloud);
+  });
+
+  it.each([false, true])(
+    'should mask the saved value by the license outside Cloud (granted: %s)',
+    async (granted) => {
+      setIsCloud(false);
+      getSelfHostedSubscription.mockResolvedValueOnce({
+        quota: { ...ossDefaultQuota, hideLogtoBranding: granted },
+      });
+
+      const { hideLogtoBranding } = await getFullSignInExperience({ locale: 'en' });
+
+      expect(hideLogtoBranding).toBe(granted);
+    }
+  );
+
+  it('should not read the license on Cloud', async () => {
+    setIsCloud(true);
+
+    const { hideLogtoBranding } = await getFullSignInExperience({ locale: 'en' });
+
+    expect(hideLogtoBranding).toBe(true);
+    expect(getSelfHostedSubscription).not.toHaveBeenCalled();
   });
 });
 
@@ -330,17 +400,51 @@ describe('get sso connectors', () => {
     ]);
   });
 
-  it('should return displayName if provided', async () => {
+  it('should include custom branding by default', async () => {
     getLogtoConnectors.mockResolvedValueOnce(mockSocialConnectors);
     findDefaultSignInExperience.mockResolvedValueOnce(mockSignInExperience);
 
     const displayName = 'Logto Connector';
+    const logo = 'https://logto.io/custom-logo.png';
+    const darkLogo = 'https://logto.io/custom-dark-logo.png';
 
     mockSsoConnectorLibrary.getAvailableSsoConnectors.mockResolvedValueOnce([
       {
         ...wellConfiguredSsoConnector,
         branding: {
           displayName,
+          logo,
+          darkLogo,
+        },
+      },
+    ]);
+
+    const { ssoConnectors } = await getFullSignInExperience({ locale: 'en' });
+
+    expect(ssoConnectors).toEqual([
+      {
+        id: wellConfiguredSsoConnector.id,
+        connectorName: displayName,
+        logo,
+        darkLogo,
+      },
+    ]);
+  });
+
+  it('should not expose custom branding when ssoBrandingBeforeEmailMatch is false', async () => {
+    getLogtoConnectors.mockResolvedValueOnce(mockSocialConnectors);
+    findDefaultSignInExperience.mockResolvedValueOnce({
+      ...mockSignInExperience,
+      ssoBrandingBeforeEmailMatch: false,
+    });
+
+    mockSsoConnectorLibrary.getAvailableSsoConnectors.mockResolvedValueOnce([
+      {
+        ...wellConfiguredSsoConnector,
+        branding: {
+          displayName: 'Logto Connector',
+          logo: 'https://logto.io/custom-logo.png',
+          darkLogo: 'https://logto.io/custom-dark-logo.png',
         },
       },
     ]);
@@ -352,7 +456,7 @@ describe('get sso connectors', () => {
     expect(ssoConnectors).toEqual([
       {
         id: wellConfiguredSsoConnector.id,
-        connectorName: displayName,
+        connectorName: connectorFactory.name.en,
         logo: connectorFactory.logo,
         darkLogo: connectorFactory.logoDark,
       },
@@ -369,6 +473,44 @@ describe('findCaptchaPublicConfig', () => {
     expect(captchaPublicConfig).toEqual({
       type: CaptchaType.Turnstile,
       siteKey: 'captcha_site_key',
+    });
+  });
+
+  it('should return the endpoint for Cap', async () => {
+    findCaptchaProvider.mockResolvedValueOnce({
+      ...mockCaptchaProvider,
+      config: {
+        type: CaptchaType.Cap,
+        endpoint: 'https://cap.example.com',
+        siteKey: 'captcha_site_key',
+        secretKey: 'captcha_secret_key',
+      },
+    });
+
+    const captchaPublicConfig = await findCaptchaPublicConfig();
+
+    expect(captchaPublicConfig).toEqual({
+      type: CaptchaType.Cap,
+      siteKey: 'captcha_site_key',
+      endpoint: 'https://cap.example.com',
+    });
+  });
+
+  it('should return the GeeTest public config without the secret key', async () => {
+    findCaptchaProvider.mockResolvedValueOnce({
+      ...mockCaptchaProvider,
+      config: {
+        type: CaptchaType.Geetest,
+        siteKey: 'captcha_id',
+        secretKey: 'captcha_key',
+      },
+    });
+
+    const captchaPublicConfig = await findCaptchaPublicConfig();
+
+    expect(captchaPublicConfig).toEqual({
+      type: CaptchaType.Geetest,
+      siteKey: 'captcha_id',
     });
   });
 
@@ -415,3 +557,4 @@ describe('forgot password methods', () => {
     });
   });
 });
+/* eslint-enable max-lines */

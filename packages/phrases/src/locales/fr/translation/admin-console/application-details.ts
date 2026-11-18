@@ -303,6 +303,13 @@ const application_details = {
     email_address: 'Adresse e-mail',
     email_address_description: "Utilisez l'adresse e-mail comme ID de nom",
   },
+  saml_idp_authentication: {
+    always_force_authn: 'Toujours forcer l’authentification',
+    always_force_authn_description:
+      'Exige que les utilisateurs se reconnectent chaque fois qu’ils accèdent à cette application, même s’ils ont déjà une session Logto.',
+    always_force_authn_tip:
+      'Lorsque cette option est activée, Logto demande toujours aux utilisateurs de se reconnecter pour cette application. Lorsqu’elle est désactivée, une session Logto existante est réutilisée à moins que le fournisseur de services ne demande une nouvelle authentification avec ForceAuthn.',
+  },
   saml_encryption_config: {
     encrypt_assertion: "Crypter l'assertion SAML",
     encrypt_assertion_description: "En activant cette option, l'assertion SAML sera cryptée.",
@@ -326,6 +333,9 @@ const application_details = {
     col_logto_claims: 'Valeur de Logto',
     col_sp_claims: 'Nom de la valeur de votre application',
     add_button: 'Ajouter un autre',
+    static_attributes_title: 'Attributs statiques',
+    static_attributes_description:
+      'Ajoutez des attributs fixes envoyés dans chaque assertion SAML, comme des valeurs constantes requises par votre application.',
   },
   concurrent_device_limit,
 };

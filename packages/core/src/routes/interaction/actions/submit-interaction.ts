@@ -14,6 +14,7 @@ import {
   defaultTenantId,
   getTenantOrganizationId,
   getTenantRole,
+  userLogtoConfigGuard,
   userMfaDataKey,
   userOnboardingDataKey,
 } from '@logto/schemas';
@@ -194,10 +195,13 @@ async function handleSubmitRegister(
 
   // JIT provisioning for email domain
   if (user.primaryEmail) {
-    const provisionedOrganizations = await libraries.users.provisionOrganizations({
-      userId: id,
-      email: user.primaryEmail,
-    });
+    // `primaryEmail` is not necessarily verified here: social registration copies it from the
+    // IdP profile without requiring an `emailVerified` identifier. See the TODO on
+    // `provisionOrganizationsByEmailDomain`.
+    const provisionedOrganizations = await libraries.users.provisionOrganizationsByEmailDomain(
+      id,
+      user.primaryEmail
+    );
 
     for (const { organizationId } of provisionedOrganizations) {
       ctx.appendDataHookContext('Organization.Membership.Updated', {
@@ -240,7 +244,10 @@ async function handleSubmitSignIn(
       mfaSkipped && {
         logtoConfig: {
           ...user.logtoConfig,
+          // Merge instead of replacing, so admin-managed MFA data such as `required` is not
+          // cleared by the legacy flow, which does not understand those fields.
           [userMfaDataKey]: {
+            ...userLogtoConfigGuard.safeParse(user.logtoConfig).data?.[userMfaDataKey],
             skipped: true,
           },
         },

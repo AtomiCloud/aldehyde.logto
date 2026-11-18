@@ -1,6 +1,7 @@
 import {
   AgreeToTermsPolicy,
   AlternativeSignUpIdentifier,
+  CrossOriginOpenerPolicy,
   MfaFactor,
   MfaPolicy,
   SignInIdentifier,
@@ -52,6 +53,7 @@ const mockSignInExperience: SignInExperience = {
   agreeToTermsPolicy: AgreeToTermsPolicy.Automatic,
   customUiAssets: null,
   customUiCsp: {},
+  crossOriginOpenerPolicy: CrossOriginOpenerPolicy.UnsafeNone,
   passwordPolicy: {},
   passwordExpiration: {
     enabled: false,
@@ -64,7 +66,9 @@ const mockSignInExperience: SignInExperience = {
   adaptiveMfa: {
     enabled: true,
   },
+  trustedDevice: {},
   singleSignOnEnabled: false,
+  ssoBrandingBeforeEmailMatch: true,
   socialSignIn: {},
   supportEmail: null,
   supportWebsiteUrl: null,
@@ -158,6 +162,39 @@ describe('sign-in experience parser', () => {
     ).toEqual(customUiCsp);
   });
 
+  it('omits the Cross-Origin-Opener-Policy when Bring your UI is not enabled', () => {
+    const signInExperience = {
+      ...mockSignInExperience,
+      crossOriginOpenerPolicy: CrossOriginOpenerPolicy.SameOrigin,
+    };
+    const formData = sieFormDataParser.fromSignInExperience(signInExperience);
+
+    expect(sieFormDataParser.toSignInExperience(formData)).not.toHaveProperty(
+      'crossOriginOpenerPolicy'
+    );
+    expect(signInExperienceToUpdatedDataParser(signInExperience)).not.toHaveProperty(
+      'crossOriginOpenerPolicy'
+    );
+  });
+
+  it('round-trips the Cross-Origin-Opener-Policy when Bring your UI is enabled', () => {
+    const signInExperience = {
+      ...mockSignInExperience,
+      crossOriginOpenerPolicy: CrossOriginOpenerPolicy.SameOriginAllowPopups,
+    };
+    const formData = sieFormDataParser.fromSignInExperience(signInExperience);
+
+    expect(formData.crossOriginOpenerPolicy).toBe(CrossOriginOpenerPolicy.SameOriginAllowPopups);
+    expect(
+      sieFormDataParser.toSignInExperience(formData, { isCustomUiCspEnabled: true })
+        .crossOriginOpenerPolicy
+    ).toBe(CrossOriginOpenerPolicy.SameOriginAllowPopups);
+    expect(
+      signInExperienceToUpdatedDataParser(signInExperience, { isCustomUiCspEnabled: true })
+        .crossOriginOpenerPolicy
+    ).toBe(CrossOriginOpenerPolicy.SameOriginAllowPopups);
+  });
+
   it('should omit adaptive mfa from sign-up and sign-in page data', () => {
     const formData = sieFormDataParser.fromSignInExperience(mockSignInExperience);
 
@@ -233,10 +270,12 @@ describe('sign-in experience parser', () => {
     expect(sieFormDataParser.toSignInExperience(formData).signUpProfileFields).toEqual([]);
   });
 
-  it('should omit hideLogtoBranding from OSS payloads', () => {
+  it('should omit hideLogtoBranding from payloads where it is unavailable', () => {
     const formData = sieFormDataParser.fromSignInExperience(mockSignInExperience);
 
-    const payload = sieFormDataParser.toSignInExperience(formData, { isCloud: false });
+    const payload = sieFormDataParser.toSignInExperience(formData, {
+      isHideLogtoBrandingAvailable: false,
+    });
 
     expect(payload).not.toHaveProperty('hideLogtoBranding');
   });
@@ -288,9 +327,9 @@ describe('sign-in experience parser', () => {
     ).toEqual([]);
   });
 
-  it('should omit hideLogtoBranding from OSS compare payloads', () => {
+  it('should omit hideLogtoBranding from compare payloads where it is unavailable', () => {
     const comparePayload = signInExperienceToUpdatedDataParser(mockSignInExperience, {
-      isCloud: false,
+      isHideLogtoBrandingAvailable: false,
     });
 
     expect(comparePayload).not.toHaveProperty('hideLogtoBranding');

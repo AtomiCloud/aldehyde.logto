@@ -1,12 +1,20 @@
-import { Applications, ApplicationSecrets, ApplicationType, internalPrefix } from '@logto/schemas';
+import {
+  ApplicationSecrets,
+  ApplicationType,
+  applicationResponseGuard,
+  internalPrefix,
+} from '@logto/schemas';
 import { generateStandardSecret } from '@logto/shared';
 import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertNotReadOnly } from '#src/middleware/koa-read-only-access.js';
 import assertThat from '#src/utils/assert-that.js';
 
 import { type ManagementApiRouter, type RouterInitArgs } from '../types.js';
+
+import { omitInternalApplicationSecret } from './application-response.js';
 
 export const generateInternalSecret = () => internalPrefix + generateStandardSecret();
 
@@ -28,7 +36,7 @@ export default function applicationSecretRoutes<T extends ManagementApiRouter>(
     '/applications/:id/legacy-secret',
     koaGuard({
       params: z.object({ id: z.string().min(1) }),
-      response: Applications.guard,
+      response: applicationResponseGuard,
       status: [200, 400, 404],
     }),
     async (ctx, next) => {
@@ -43,7 +51,10 @@ export default function applicationSecretRoutes<T extends ManagementApiRouter>(
       }
 
       const secret = generateInternalSecret();
-      ctx.body = await queries.applications.updateApplicationById(id, { secret });
+      ctx.body = omitInternalApplicationSecret(
+        await queries.applications.updateApplicationById(id, { secret }),
+        ctx.auth
+      );
       return next();
     }
   );
@@ -53,9 +64,10 @@ export default function applicationSecretRoutes<T extends ManagementApiRouter>(
     koaGuard({
       params: z.object({ id: z.string() }),
       response: ApplicationSecrets.guard.array(),
-      status: [200, 404],
+      status: [200, 403, 404],
     }),
     async (ctx, next) => {
+      assertNotReadOnly(ctx.auth);
       const { id } = ctx.guard.params;
       // Ensure that the application exists.
       await queries.applications.findApplicationById(id);

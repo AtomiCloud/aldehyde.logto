@@ -1,5 +1,42 @@
 # Change Log
 
+## 5.2.0
+
+### Minor Changes
+
+- 9d7d323: add Sign-In with Ethereum (SIWE / EIP-4361) for EVM wallets
+
+  Administrators can enable an Ethereum Wallet social connector. Users with an injected EIP-1193 wallet can sign a one-time SIWE message without leaving the sign-in page. A single address works across supported EVM chains, and administrators can restrict the allowed chain IDs.
+
+- 05678f9: accept token responses that return `scope` as an array
+
+  Some providers, such as Twitch, return `scope` in the token response as a JSON array instead of a space-delimited string. Social sign-in with the generic OAuth 2.0 and OIDC connectors no longer fails with an invalid response error for these providers; the scopes are normalized to a space-delimited string.
+
+### Patch Changes
+
+- 800eb13: reduce the CPU cost of validating JSON with `jsonGuard` and `jsonObjectGuard`
+
+  The recursive JSON schema is now built once instead of once per nested value, which cuts the time spent validating large JSON payloads. Validation results are unchanged.
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- 664e6ac: show the provider's actual error message instead of `{}` when a social connector request fails
+
+## 5.1.2
+
+### Patch Changes
+
+- 1326394: disallow combining the `none` prompt with other prompt values in OIDC configuration
+
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [7464c6a97a]
+  - @logto/language-kit@1.4.0
+
 ## 5.1.0
 
 ### Minor Changes
@@ -68,9 +105,9 @@
 
   ```ts
   await logtoClient.signIn({
-    redirectUri: "https://your.app/callback",
+    redirectUri: 'https://your.app/callback',
     extraParams: {
-      ui_locales: "fr-CA fr en",
+      ui_locales: 'fr-CA fr en',
     },
   });
   ```
@@ -128,8 +165,8 @@ If you are using Email/SMS as a MFA method, you should update your connector con
   1. Direct replacement
 
   ```ts
-  replaceSendMessageKeysWithPayload("Your verification code is {{code}}", {
-    code: "123456",
+  replaceSendMessageKeysWithPayload('Your verification code is {{code}}', {
+    code: '123456',
   });
   // 'Your verification code is 123456'
   ```
@@ -137,30 +174,25 @@ If you are using Email/SMS as a MFA method, you should update your connector con
   2. Deep property access
 
   ```ts
-  replaceSendMessageKeysWithPayload(
-    "Your logo is {{organization.branding.logoUrl}}",
-    { organization: { branding: { logoUrl: "https://example.com/logo.png" } } },
-  );
+  replaceSendMessageKeysWithPayload('Your logo is {{organization.branding.logoUrl}}', {
+    organization: { branding: { logoUrl: 'https://example.com/logo.png' } },
+  });
   // 'Your logo is https://example.com/logo.png'
   ```
 
   3. Missing properties
 
   ```ts
-  replaceSendMessageKeysWithPayload(
-    "Your logo is {{organization.branding.logoUrl}}",
-    { organization: { name: "foo" } },
-  );
+  replaceSendMessageKeysWithPayload('Your logo is {{organization.branding.logoUrl}}', {
+    organization: { name: 'foo' },
+  });
   // 'Your logo is '
   ```
 
   4. Preservation of missing variables
 
   ```ts
-  replaceSendMessageKeysWithPayload(
-    "Your application is {{application.name}}",
-    {},
-  );
+  replaceSendMessageKeysWithPayload('Your application is {{application.name}}', {});
   // 'Your application is {{application.name}}'
   ```
 

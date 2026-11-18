@@ -343,15 +343,10 @@ export class SignInExperienceValidator {
 
     assertThat(
       enabledSsoConnectors.length === 0,
-      new RequestError(
-        {
-          code: 'session.sso_enabled',
-          status: 422,
-        },
-        {
-          ssoConnectors: enabledSsoConnectors,
-        }
-      )
+      new RequestError({
+        code: 'session.sso_enabled',
+        status: 422,
+      })
     );
   }
 
@@ -405,6 +400,12 @@ export class SignInExperienceValidator {
       case VerificationType.Password:
       case VerificationType.EmailVerificationCode:
       case VerificationType.PhoneVerificationCode: {
+        // A record created for the subject verifies an enrolled credential offered by the step-up
+        // eligibility, not a sign-in method.
+        if (verificationRecord.userId) {
+          return;
+        }
+
         const {
           identifier: { type },
         } = verificationRecord;

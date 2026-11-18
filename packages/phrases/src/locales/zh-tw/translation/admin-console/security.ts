@@ -34,6 +34,15 @@ const security = {
       description:
         'Cloudflare 的智慧型 CAPTCHA 替代方案，提供非侵入性的機器人保護，同時確保不需要視覺拼圖的無縫使用者體驗。',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        '開源、可自行託管的工作量證明 CAPTCHA，不需要視覺拼圖或第三方服務，適合無法存取其他 CAPTCHA 服務的地區。',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description: '極驗自適應 CAPTCHA，提供在地化驗證體驗，在中國大陸存取穩定。',
+    },
   },
   captcha_details: {
     back_to_security: '返回安全',
@@ -49,6 +58,12 @@ const security = {
     domain_placeholder: 'www.google.com（預設）或 recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA 金鑰 ID',
     recaptcha_api_key: '專案的 API 金鑰',
+    cap_endpoint: 'Cap 端點',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      '此端點使用 HTTP，僅適用於本機開發。瀏覽器會封鎖 HTTPS 登入頁發出的 HTTP 請求，且密鑰將以明文傳輸。正式環境請使用 HTTPS。',
+    geetest_captcha_id: '驗證 ID',
+    geetest_captcha_key: '驗證金鑰',
     deletion_description: '你確定要刪除此 CAPTCHA 提供商嗎？',
     captcha_deleted: 'CAPTCHA 提供商刪除成功',
     setup_captcha: '設定 CAPTCHA',
@@ -57,6 +72,10 @@ const security = {
     mode_checkbox: '複選框驗證',
     mode_notice:
       '驗證模式在 Google Cloud Console 的 reCAPTCHA 金鑰設定中定義。更改此處的模式需要匹配的金鑰類型。',
+    score_threshold: '分數門檻',
+    score_threshold_description:
+      '低於門檻的分數會被拒絕。0.0 允許所有分數，1.0 只允許滿分。預設值為 0.5。',
+    score_threshold_error: '分數門檻必須介於 0 到 1 之間。',
   },
   password_policy: {
     password_requirements: '密碼需求',
@@ -134,21 +153,36 @@ const security = {
     },
     manual_unlock: {
       title: '手動解鎖',
-      description: '通過確認用戶身份並輸入其識別符立即解鎖用戶。',
-      unblock_by_identifiers: '按識別符解鎖',
+      description: '透過確認用戶身份並輸入其識別符或用戶 ID 立即解鎖用戶。',
+      unblock_by_identifiers: '按識別符或用戶 ID 解鎖',
       modal_description_1:
-        '由於多次嘗試登入/註冊失敗，一個識別符被暫時鎖定。為了保護安全，訪問將在鎖定持續時間後自動恢復。',
+        '由於多次嘗試登入/註冊或安全驗證失敗，一個識別符或用戶 ID 被暫時鎖定。為了保護安全，訪問將在鎖定持續時間後自動恢復。',
       modal_description_2: ' 只有在你確認用戶身份並確保沒有未經授權的訪問嘗試後，才手動解鎖。',
-      placeholder: '輸入識別符（電子郵件地址 / 電話號碼 / 用戶名）',
+      placeholder: '輸入識別符或用戶 ID（電子郵件地址 / 電話號碼 / 用戶名 / 用戶 ID）',
       confirm_button_text: '立即解鎖',
       success_toast: '解鎖成功',
-      duplicate_identifier_error: '識別符已添加',
-      empty_identifier_error: '請輸入至少一個識別符',
+      duplicate_identifier_error: '識別符或用戶 ID 已添加',
+      empty_identifier_error: '請輸入至少一個識別符或用戶 ID',
     },
   },
   blocklist: {
     card_title: '電子郵件封鎖名單',
     card_description: '通過封鎖高風險或不需要的電子郵件地址來控管你的用戶群。',
+    custom_email_allowlist: {
+      title: '允許自訂電子郵件地址',
+      description:
+        '新增規則，僅允許特定的電子郵件網域、電子郵件地址或萬用字元模式用於新註冊和新連結的電子郵件。例如：bar@example.com、@example.com、foo*@example.com、*@example.com。gmail.com 和 googlemail.com 網域會被視為等同，且本地部分中的點號會被忽略，因此 foo.bar@gmail.com 與 foobar@googlemail.com 相符。',
+      placeholder: '輸入電子郵件地址、網域或萬用字元模式',
+      duplicate_error: '電子郵件地址、網域或萬用字元電子郵件地址模式已新增',
+      invalid_format_error:
+        '必須是有效的電子郵件地址（bar@example.com）、網域（@example.com）或萬用字元電子郵件地址模式（foo*@example.com，*@example.com）',
+      warnings: {
+        identical_entries: '部分允許清單項目也存在於阻擋規則中。相符的電子郵件仍可能被阻擋。',
+        blocked_exact_email: '部分精確電子郵件允許項目符合阻擋規則。相符的電子郵件仍可能被阻擋。',
+        blocked_subaddressing: '部分允許清單項目包含加號（+），但電子郵件子位址已被阻擋。',
+        effectively_unusable: '根據這些檢查，目前允許清單可能無法讓任何新的電子郵件通過。',
+      },
+    },
     disposable_email: {
       title: '封鎖一次性電子郵件地址',
       description:
@@ -161,10 +195,12 @@ const security = {
     },
     custom_email_address: {
       title: '封鎖自訂電子郵件地址',
-      description: '添加無法註冊或通過 UI 連結的特定電子郵件域或電子郵件地址。',
-      placeholder: '輸入被封鎖的電子郵件地址或域（例如，bar@example.com, @example.com）',
-      duplicate_error: '電子郵件地址或域已添加',
-      invalid_format_error: '必須是有效的電子郵件地址(bar@example.com)或域(@example.com)',
+      description:
+        '新增規則，封鎖特定的電子郵件網域、電子郵件地址或萬用字元模式透過 UI 註冊或連結。例如：bar@example.com、@example.com、foo*@example.com、*@example.com。gmail.com 和 googlemail.com 網域會被視為等同，且本地部分中的點號會被忽略，因此 foo.bar@gmail.com 與 foobar@googlemail.com 相符。',
+      placeholder: '輸入電子郵件地址、網域或萬用字元模式',
+      duplicate_error: '電子郵件地址、域或萬用字元電子郵件地址模式已添加',
+      invalid_format_error:
+        '必須是有效的電子郵件地址（bar@example.com）、域（@example.com）或萬用字元電子郵件地址模式（foo*@example.com, *@example.com）',
     },
   },
 };

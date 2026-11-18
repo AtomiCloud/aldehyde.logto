@@ -1,4 +1,4 @@
-/* eslint-disable max-lines */
+/* eslint-disable max-lines -- MFA policy and adaptive verification scenarios share the interaction harness. */
 import {
   InteractionEvent,
   InteractionHookEvent,
@@ -57,7 +57,14 @@ const users = {
   hasUserWithIdentity: jest.fn().mockResolvedValue(false),
 };
 
-const tenant = new MockTenant(createMockProvider(), { signInExperiences, users });
+const getEffectivePolicy = jest.fn().mockResolvedValue({ enabled: false, durationDays: 30 });
+const tenant = new MockTenant(createMockProvider(), { signInExperiences, users }, undefined, {
+  trustedDevicePolicy: { getEffectivePolicy },
+});
+const mockInteractionDetails = {
+  jti: 'session-id',
+  params: { client_id: 'application-id' },
+} as unknown as WithHooksAndLogsContext['interactionDetails'];
 
 const ExperienceInteraction = await pickDefault(import('./experience-interaction.js'));
 
@@ -151,7 +158,7 @@ describe('ExperienceInteraction adaptive MFA', () => {
         mfaVerifications: hasMfa ? mockUserWithMfaVerifications.mfaVerifications : [],
         logtoConfig: skipMfaOnSignIn ? { mfa: { skipMfaOnSignIn: true } } : {},
       };
-      const mfaValidator = new MfaValidator(mfaSettings, user, adaptiveMfaResult);
+      const mfaValidator = new MfaValidator(mfaSettings, user, { adaptiveMfaResult });
       expect(mfaValidator.isMfaRequired).toBe(expected);
     }
   );
@@ -446,6 +453,7 @@ describe('ExperienceInteraction adaptive MFA', () => {
       assignReleaseOnSuccessInteractionHookResult: jest.fn(),
       assignReleaseAnywayInteractionHookResult: jest.fn(),
       appendDataHookContext: jest.fn(),
+      interactionDetails: mockInteractionDetails,
       ...createContextWithRouteParameters({
         headers: {
           'x-logto-cf-bot-score': '10',
@@ -667,6 +675,7 @@ describe('ExperienceInteraction adaptive MFA', () => {
       assignReleaseOnSuccessInteractionHookResult: jest.fn(),
       assignReleaseAnywayInteractionHookResult: jest.fn(),
       appendDataHookContext: jest.fn(),
+      interactionDetails: mockInteractionDetails,
       ...createContextWithRouteParameters({
         headers: {
           'x-logto-cf-bot-score': '10',
@@ -741,6 +750,7 @@ describe('ExperienceInteraction adaptive MFA', () => {
         assignReleaseOnSuccessInteractionHookResult: jest.fn(),
         assignReleaseAnywayInteractionHookResult: jest.fn(),
         appendDataHookContext: jest.fn(),
+        interactionDetails: mockInteractionDetails,
         ...createContextWithRouteParameters({
           headers: {
             'x-logto-cf-bot-score': '10',
@@ -792,6 +802,7 @@ describe('ExperienceInteraction adaptive MFA', () => {
       assignReleaseOnSuccessInteractionHookResult: jest.fn(),
       assignReleaseAnywayInteractionHookResult: jest.fn(),
       appendDataHookContext: jest.fn(),
+      interactionDetails: mockInteractionDetails,
       ...createContextWithRouteParameters({
         headers: {
           'x-logto-cf-bot-score': '10',
@@ -843,6 +854,7 @@ describe('ExperienceInteraction adaptive MFA', () => {
       assignReleaseOnSuccessInteractionHookResult: jest.fn(),
       assignReleaseAnywayInteractionHookResult: jest.fn(),
       appendDataHookContext: jest.fn(),
+      interactionDetails: mockInteractionDetails,
       ...createContextWithRouteParameters({
         headers: {
           'x-logto-cf-bot-score': '10',

@@ -33,13 +33,26 @@ const error = {
   invalid_link: 'ลิงก์ไม่ถูกต้อง',
   invalid_link_description: 'โทเค็นใช้ครั้งเดียวของคุณอาจหมดอายุหรือไม่ถูกต้องอีกต่อไป',
   captcha_verification_failed: 'การตรวจสอบ captcha ล้มเหลว',
+  send_verification_code_failed: 'ส่งรหัสยืนยันไม่สำเร็จ โปรดลองอีกครั้งในภายหลัง',
+  send_verification_code_failed_use_password:
+    'ส่งรหัสยืนยันไม่สำเร็จ โปรดเข้าสู่ระบบด้วยรหัสผ่านแทน',
   terms_acceptance_required: 'จำเป็นต้องยอมรับเงื่อนไข',
   terms_acceptance_required_description: 'คุณต้องยอมรับเงื่อนไขเพื่อดำเนินการต่อ',
   something_went_wrong: 'เกิดข้อผิดพลาดบางอย่าง',
+  account_suspended: 'บัญชีถูกระงับ',
+  account_suspended_description: 'บัญชีนี้ถูกระงับ โปรดติดต่อผู้ดูแลระบบเพื่อขอความช่วยเหลือ',
   access_denied: 'ปฏิเสธการเข้าถึง',
   application_access_denied:
     'คุณไม่มีสิทธิ์เข้าถึงแอปพลิเคชันนี้\nกรุณาติดต่อผู้ดูแลระบบเพื่อขอความช่วยเหลือ',
   feature_not_enabled: 'คุณไม่มีสิทธิ์เข้าถึงฟีเจอร์นี้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอความช่วยเหลือ',
+  wallet_not_found:
+    'ไม่พบกระเป๋าเงิน Ethereum ติดตั้งส่วนขยายกระเป๋าเงินในเบราว์เซอร์แล้วลองอีกครั้ง',
+  wallet_not_supported:
+    'การเข้าสู่ระบบด้วยกระเป๋าเงินรองรับเฉพาะในเบราว์เซอร์ที่ติดตั้งส่วนขยายกระเป๋าเงินเท่านั้น',
+  wallet_request_rejected: 'คำขอกระเป๋าเงินถูกปฏิเสธ โปรดลองอีกครั้ง',
+  wallet_unsupported_chain:
+    'กระเป๋าเงินของคุณเชื่อมต่อกับเครือข่ายที่ไม่รองรับ โปรดเปลี่ยนเครือข่ายแล้วลองอีกครั้ง',
+  wallet_signature_invalid: 'ลายเซ็นกระเป๋าเงินไม่ถูกต้องหรือหมดอายุแล้ว โปรดลองอีกครั้ง',
 };
 
 export default Object.freeze(error);

@@ -1,5 +1,34 @@
 # @logto/connector-google
 
+## 1.8.8
+
+### Patch Changes
+
+- d89e507: support Node.js 26
+
+  Logto and the published packages now declare support for Node.js 22, 24 and 26. The minimum supported versions are 22.23.4, 24.22.1 and 26.12.1, which include the October 2026 Node.js security fixes.
+
+- Updated dependencies [800eb13]
+- Updated dependencies [d89e507]
+- Updated dependencies [9d7d323]
+- Updated dependencies [664e6ac]
+- Updated dependencies [05678f9]
+  - @logto/connector-kit@5.2.0
+
+## 1.8.7
+
+### Patch Changes
+
+- @logto/connector-kit@5.1.1
+
+## 1.8.6
+
+### Patch Changes
+
+- 4963a55b4: upgrade jose from v5 to v6
+
+  These connectors now use jose 6, which runs on the Web Crypto API instead of Node's crypto module. Token signing and ID token verification behave exactly as before.
+
 ## 1.8.5
 
 ### Patch Changes

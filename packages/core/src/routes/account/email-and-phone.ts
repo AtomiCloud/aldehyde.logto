@@ -3,15 +3,16 @@ import { VerificationType, AccountCenterControlValue } from '@logto/schemas';
 import { z } from 'zod';
 
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import { assertUserHasRemainingIdentifier } from '#src/utils/user.js';
 
-import RequestError from '../../errors/RequestError/index.js';
 import { validateEmailAgainstBlocklistPolicy } from '../../libraries/sign-in-experience/email-blocklist-policy.js';
 import { buildVerificationRecordByIdAndType } from '../../libraries/verification.js';
 import assertThat from '../../utils/assert-that.js';
 import type { UserRouter, RouterInitArgs } from '../types.js';
 
 import { accountApiPrefix } from './constants.js';
+import { assertIdentityVerified } from './utils/identity-verification.js';
 
 export default function emailAndPhoneRoutes<T extends UserRouter>(...args: RouterInitArgs<T>) {
   const [router, { queries, libraries }] = args;
@@ -32,14 +33,11 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
         email: z.string().regex(emailRegEx),
         newIdentifierVerificationRecordId: z.string(),
       }),
-      status: [204, 400, 401, 422],
+      status: [204, 400, 401, 403, 422],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      const { id: userId, scopes, clientId } = ctx.auth;
+      assertIdentityVerified(ctx);
       const { email, newIdentifierVerificationRecordId } = ctx.guard.body;
       const { fields } = ctx.accountCenter;
       assertThat(
@@ -48,6 +46,7 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
       );
 
       assertThat(scopes.has(UserScope.Email), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       // Validate email blocklist policy
       const { emailBlocklistPolicy } = await findDefaultSignInExperience();
@@ -78,14 +77,11 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
   router.delete(
     `${accountApiPrefix}/primary-email`,
     koaGuard({
-      status: [204, 400, 401],
+      status: [204, 400, 401, 403],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      const { id: userId, scopes, clientId } = ctx.auth;
+      assertIdentityVerified(ctx);
       const { fields } = ctx.accountCenter;
       assertThat(
         fields.email === AccountCenterControlValue.Edit,
@@ -93,6 +89,7 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
       );
 
       assertThat(scopes.has(UserScope.Email), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       const [user, ssoIdentities] = await Promise.all([
         findUserById(userId),
@@ -117,14 +114,11 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
         phone: z.string().regex(phoneRegEx),
         newIdentifierVerificationRecordId: z.string(),
       }),
-      status: [204, 400, 401, 422],
+      status: [204, 400, 401, 403, 422],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      const { id: userId, scopes, clientId } = ctx.auth;
+      assertIdentityVerified(ctx);
       const { phone, newIdentifierVerificationRecordId } = ctx.guard.body;
       const { fields } = ctx.accountCenter;
       assertThat(
@@ -133,6 +127,7 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
       );
 
       assertThat(scopes.has(UserScope.Phone), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       // Check new identifier
       const newVerificationRecord = await buildVerificationRecordByIdAndType({
@@ -159,14 +154,11 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
   router.delete(
     `${accountApiPrefix}/primary-phone`,
     koaGuard({
-      status: [204, 400, 401],
+      status: [204, 400, 401, 403],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
-      assertThat(
-        identityVerified,
-        new RequestError({ code: 'verification_record.permission_denied', status: 401 })
-      );
+      const { id: userId, scopes, clientId } = ctx.auth;
+      assertIdentityVerified(ctx);
       const { fields } = ctx.accountCenter;
       assertThat(
         fields.phone === AccountCenterControlValue.Edit,
@@ -174,6 +166,7 @@ export default function emailAndPhoneRoutes<T extends UserRouter>(...args: Route
       );
 
       assertThat(scopes.has(UserScope.Phone), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       const [user, ssoIdentities] = await Promise.all([
         findUserById(userId),

@@ -14,11 +14,14 @@ const connector = {
   template_not_found: 'Impossible de trouver le bon modèle dans la configuration du connecteur.',
   template_not_supported: 'Le connecteur ne prend pas en charge ce type de modèle.',
   rate_limit_exceeded: 'Limite de taux dépassée. Veuillez réessayer plus tard.',
+  usage_limit_exceeded: 'La limite d’utilisation du service e-mail a été atteinte.',
   not_implemented: "{{method}} : n'a pas encore été mis en œuvre.",
   social_invalid_access_token: "Le jeton d'accès du connecteur n'est pas valide.",
   invalid_auth_code: "Le code d'authentification du connecteur n'est pas valide.",
   social_invalid_id_token: "Le jeton d'identification du connecteur n'est pas valide.",
   authorization_failed: "Le processus d'autorisation de l'utilisateur n'a pas abouti.",
+  social_provider_unreachable:
+    "Le fournisseur social n'a pas pu être joint ({{reason}}). Veuillez réessayer plus tard.",
   social_auth_code_invalid:
     "Impossible d'obtenir le jeton d'accès, veuillez vérifier le code d'autorisation.",
   more_than_one_sms: 'Le nombre de connecteurs SMS est supérieur à 1.',

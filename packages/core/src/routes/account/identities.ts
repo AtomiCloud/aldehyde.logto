@@ -8,6 +8,7 @@ import RequestError from '#src/errors/RequestError/index.js';
 import type { HookContextManager } from '#src/libraries/hook/context-manager.js';
 import { buildVerificationRecordByIdAndType } from '#src/libraries/verification.js';
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
 import { buildAppInsightsTelemetry } from '#src/utils/request.js';
 import { assertCanDeleteSocialIdentity } from '#src/utils/user.js';
@@ -15,7 +16,7 @@ import { assertCanDeleteSocialIdentity } from '#src/utils/user.js';
 import type { UserRouter, RouterInitArgs } from '../types.js';
 
 import { accountApiPrefix } from './constants.js';
-import { assertIdentityVerifiedIfRequired } from './utils/has-security-verification-method.js';
+import { assertIdentityVerifiedIfRequired } from './utils/identity-verification.js';
 
 export default function identitiesRoutes<T extends UserRouter>(
   ...[router, { queries, libraries }]: RouterInitArgs<T>
@@ -110,10 +111,10 @@ export default function identitiesRoutes<T extends UserRouter>(
       body: z.object({
         newIdentifierVerificationRecordId: z.string(),
       }),
-      status: [204, 400, 401, 422],
+      status: [204, 400, 401, 403, 422],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       assertThat(
         ctx.accountCenter.fields.social === AccountCenterControlValue.Edit,
         'account_center.field_not_editable'
@@ -122,8 +123,10 @@ export default function identitiesRoutes<T extends UserRouter>(
         scopes.has(UserScope.Identities),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+      await assertFirstPartyClient(queries, clientId);
+
       const user = await findUserById(userId);
-      assertIdentityVerifiedIfRequired(user, identityVerified);
+      assertIdentityVerifiedIfRequired(ctx, user);
 
       await linkSocialIdentityCore({
         user,
@@ -143,10 +146,10 @@ export default function identitiesRoutes<T extends UserRouter>(
       body: z.object({
         newIdentifierVerificationRecordId: z.string(),
       }),
-      status: [204, 400, 401, 422],
+      status: [204, 400, 401, 403, 422],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       assertThat(
         ctx.accountCenter.fields.social === AccountCenterControlValue.Edit,
         'account_center.field_not_editable'
@@ -155,8 +158,10 @@ export default function identitiesRoutes<T extends UserRouter>(
         scopes.has(UserScope.Identities),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+      await assertFirstPartyClient(queries, clientId);
+
       const user = await findUserById(userId);
-      assertIdentityVerifiedIfRequired(user, identityVerified);
+      assertIdentityVerifiedIfRequired(ctx, user);
 
       await linkSocialIdentityCore({
         user,
@@ -174,10 +179,10 @@ export default function identitiesRoutes<T extends UserRouter>(
     `${accountApiPrefix}/identities/:target`,
     koaGuard({
       params: z.object({ target: z.string() }),
-      status: [204, 400, 401, 404, 422],
+      status: [204, 400, 401, 403, 404, 422],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { target } = ctx.guard.params;
       const { fields } = ctx.accountCenter;
       assertThat(
@@ -186,12 +191,13 @@ export default function identitiesRoutes<T extends UserRouter>(
       );
 
       assertThat(scopes.has(UserScope.Identities), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       const [user, ssoIdentities] = await Promise.all([
         findUserById(userId),
         userSsoIdentities.findUserSsoIdentitiesByUserId(userId),
       ]);
-      assertIdentityVerifiedIfRequired(user, identityVerified);
+      assertIdentityVerifiedIfRequired(ctx, user);
 
       assertCanDeleteSocialIdentity(user, target, ssoIdentities.length);
 

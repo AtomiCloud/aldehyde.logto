@@ -1,10 +1,11 @@
 import { ReservedResource } from '@logto/core-kit';
-import { type ConsentInfoResponse } from '@logto/schemas';
+import { type ConsentInfoResponse, isCimdClientId } from '@logto/schemas';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import LandingPageLayout from '@/Layout/LandingPageLayout';
 import { consent, getConsentInfo } from '@/apis/consent';
+import { abortInteraction } from '@/apis/experience';
 import TermsLinks from '@/components/TermsLinks';
 import TextLink from '@/components/TextLink';
 import useApi from '@/hooks/use-api';
@@ -16,13 +17,32 @@ import { searchKeys } from '@/shared/utils/search-parameters';
 
 import OrganizationSelector, { type Organization } from './OrganizationSelector';
 import ScopesListCard from './ScopesListCard';
+import UnregisteredClientNotice from './UnregisteredClientNotice';
 import UserProfile from './UserProfile';
 import styles from './index.module.scss';
-import { getRedirectUriOrigin } from './util';
+import { getClientIdentifierHost, getRedirectUriOrigin } from './util';
+
+/**
+ * Resolve how the client identifies itself on the page.
+ *
+ * An unregistered (CIMD) client is recognized by its identifier alone: the consent info keeps the
+ * client identifier URL in `id`, and a registered application id never takes that shape. Its name
+ * comes from the metadata document, which may omit `client_name` — the identifier host stands in
+ * then, and stays on the page as a permanent identity signal either way.
+ */
+const getClientDisplayData = ({ application: { id, displayName, name } }: ConsentInfoResponse) => {
+  const unregisteredClientHost = isCimdClientId(id) ? getClientIdentifierHost(id) : undefined;
+
+  return {
+    unregisteredClientHost,
+    applicationName: (displayName ?? name) || (unregisteredClientHost ?? name),
+  };
+};
 
 const Consent = () => {
   const handleError = useErrorHandler();
   const asyncConsent = useApi(consent);
+  const asyncAbort = useApi(abortInteraction);
   const { t } = useTranslation();
   const redirectTo = useGlobalRedirectTo();
 
@@ -79,6 +99,27 @@ const Consent = () => {
     }
   }, [asyncConsent, handleConsentError, redirectTo, selectedOrganization?.id]);
 
+  /**
+   * Cancel finishes the interaction with an `access_denied` OAuth error, so the client receives
+   * the error together with the original `state` and `iss`. A bare redirect to the redirect URI
+   * would drop both.
+   */
+  const cancelHandler = useCallback(
+    async (redirectUri: string) => {
+      const [error, result] = await asyncAbort();
+
+      // Fall back to the previous behavior when aborting fails, e.g. the interaction has already
+      // expired, so the user is not stranded on the consent page.
+      if (error || !result?.redirectTo) {
+        window.location.replace(redirectUri);
+        return;
+      }
+
+      await redirectTo(result.redirectTo);
+    },
+    [asyncAbort, redirectTo]
+  );
+
   useEffect(() => {
     const getConsentInfoHandler = async () => {
       const [error, result] = await asyncGetConsentInfo();
@@ -121,10 +162,10 @@ const Consent = () => {
   }
 
   const {
-    application: { displayName, name, termsOfUseUrl, privacyPolicyUrl },
+    application: { termsOfUseUrl, privacyPolicyUrl },
   } = consentData;
 
-  const applicationName = displayName ?? name;
+  const { unregisteredClientHost, applicationName } = getClientDisplayData(consentData);
   const showTerms = Boolean(termsOfUseUrl ?? privacyPolicyUrl);
   const { redirectUri } = consentData;
   const redirectUriOrigin = consentData.redirectUri
@@ -139,6 +180,12 @@ const Consent = () => {
       }}
       thirdPartyBranding={consentData.application.branding}
     >
+      {unregisteredClientHost && (
+        <UnregisteredClientNotice
+          className={styles.unregisteredClientNotice}
+          host={unregisteredClientHost}
+        />
+      )}
       <UserProfile user={consentData.user} />
       <ScopesListCard
         userScopes={consentData.missingOIDCScope}
@@ -165,7 +212,7 @@ const Consent = () => {
             title="action.cancel"
             type="secondary"
             onClick={() => {
-              window.location.replace(redirectUri);
+              void cancelHandler(redirectUri);
             }}
           />
         )}
@@ -190,7 +237,7 @@ const Consent = () => {
             }}
           >
             {t('description.authorize_agreement_with_redirect', {
-              name,
+              name: applicationName,
               uri: redirectUriOrigin,
             })}
           </Trans>
@@ -210,7 +257,7 @@ const Consent = () => {
             }}
           >
             {t('description.authorize_agreement', {
-              name,
+              name: applicationName,
             })}
           </Trans>
         </div>

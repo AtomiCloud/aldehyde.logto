@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- this file hosts every verification method (password, verification code, WebAuthn, social) in one router; the first-party guard pushed it just over the limit */
 import { TemplateType } from '@logto/connector-kit';
 import {
   AdditionalIdentifier,
@@ -14,6 +15,7 @@ import { z } from 'zod';
 
 import koaGuard from '#src/middleware/koa-guard.js';
 import { buildMessageRateGuard, withMessageRateGuard } from '#src/sentinel/message-rate-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 
 import {
   buildVerificationRecordByIdAndType,
@@ -27,6 +29,8 @@ import { SocialVerification } from '../experience/classes/verifications/social-v
 import { WebAuthnVerification } from '../experience/classes/verifications/web-authn-verification.js';
 import type { UserRouter, RouterInitArgs } from '../types.js';
 
+import { guardNewIdentifierEmailBlocklist } from './utils.js';
+
 export const verificationApiPrefix = '/verifications';
 
 export default function verificationRoutes<T extends UserRouter>(
@@ -39,11 +43,13 @@ export default function verificationRoutes<T extends UserRouter>(
     koaGuard({
       body: z.object({ password: z.string().min(1) }),
       response: z.object({ verificationRecordId: z.string(), expiresAt: z.string() }),
-      status: [201, 400, 422],
+      status: [201, 400, 403, 422],
     }),
     async (ctx, next) => {
-      const { id: userId } = ctx.auth;
+      const { id: userId, clientId } = ctx.auth;
       const { password } = ctx.guard.body;
+
+      await assertFirstPartyClient(queries, clientId);
 
       const passwordVerification = PasswordVerification.create(libraries, queries, {
         type: AdditionalIdentifier.UserId,
@@ -53,6 +59,7 @@ export default function verificationRoutes<T extends UserRouter>(
         {
           ctx,
           sentinel,
+          queries,
           action: SentinelActivityAction.Password,
           identifier: {
             type: AdditionalIdentifier.UserId,
@@ -82,7 +89,6 @@ export default function verificationRoutes<T extends UserRouter>(
     koaGuard({
       body: z.object({
         identifier: verificationCodeIdentifierGuard,
-        // Optional: explicitly specify the template type to use (limited set)
         templateType: z
           .union([
             z.literal(TemplateType.BindMfa),
@@ -91,11 +97,13 @@ export default function verificationRoutes<T extends UserRouter>(
           .optional(),
       }),
       response: z.object({ verificationRecordId: z.string(), expiresAt: z.string() }),
-      status: [201, 429, 501],
+      status: [201, 403, 422, 429, 501],
     }),
     async (ctx, next) => {
       const { id: userId, clientId: applicationId } = ctx.auth;
       const { identifier, templateType: inputTemplateType } = ctx.guard.body;
+
+      await assertFirstPartyClient(queries, applicationId);
 
       const user = await queries.users.findUserById(userId);
       const isNewIdentifier =
@@ -105,6 +113,8 @@ export default function verificationRoutes<T extends UserRouter>(
       const templateType = isNewIdentifier
         ? TemplateType.BindNewIdentifier
         : (inputTemplateType ?? TemplateType.UserPermissionValidation);
+
+      await guardNewIdentifierEmailBlocklist(queries, identifier, isNewIdentifier);
 
       const codeVerification = createNewCodeVerificationRecord(
         libraries,
@@ -167,10 +177,13 @@ export default function verificationRoutes<T extends UserRouter>(
       }),
       response: z.object({ verificationRecordId: z.string() }),
       // 501: connector not found
-      status: [200, 400, 501],
+      status: [200, 400, 403, 501],
     }),
     async (ctx, next) => {
       const { identifier, code, verificationId } = ctx.guard.body;
+      const { clientId } = ctx.auth;
+
+      await assertFirstPartyClient(queries, clientId);
 
       const codeVerification = await buildVerificationRecordByIdAndType({
         type:
@@ -186,6 +199,7 @@ export default function verificationRoutes<T extends UserRouter>(
         {
           ctx,
           sentinel,
+          queries,
           action: SentinelActivityAction.VerificationCode,
           identifier,
           payload: {
@@ -255,7 +269,7 @@ export default function verificationRoutes<T extends UserRouter>(
       response: z.object({
         verificationRecordId: z.string(),
       }),
-      status: [200, 400, 404, 422],
+      status: [200, 400, 401, 404, 422, 502],
     }),
     async (ctx, next) => {
       const { connectorData, verificationRecordId } = ctx.guard.body;
@@ -294,13 +308,15 @@ export default function verificationRoutes<T extends UserRouter>(
         registrationOptions: webAuthnRegistrationOptionsGuard,
         expiresAt: z.string(),
       }),
-      status: [200],
+      status: [200, 403],
     }),
     async (ctx, next) => {
       const {
-        auth: { id: userId },
+        auth: { id: userId, clientId },
         URL: { hostname },
       } = ctx;
+
+      await assertFirstPartyClient(queries, clientId);
 
       const webAuthnVerification = WebAuthnVerification.create(libraries, queries, userId);
 
@@ -330,10 +346,13 @@ export default function verificationRoutes<T extends UserRouter>(
       response: z.object({
         verificationRecordId: z.string(),
       }),
-      status: [200, 400, 404],
+      status: [200, 400, 403, 404],
     }),
     async (ctx, next) => {
       const { verificationRecordId, payload } = ctx.guard.body;
+      const { clientId } = ctx.auth;
+
+      await assertFirstPartyClient(queries, clientId);
 
       const webAuthnVerification = await buildVerificationRecordByIdAndType({
         type: VerificationType.WebAuthn,
@@ -352,3 +371,4 @@ export default function verificationRoutes<T extends UserRouter>(
     }
   );
 }
+/* eslint-enable max-lines */

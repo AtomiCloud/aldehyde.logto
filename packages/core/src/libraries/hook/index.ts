@@ -1,6 +1,9 @@
 import {
   LogResult,
   userInfoSelectFields,
+  type BetterOmit,
+  type ExceptionHookEventPayload,
+  type GrantLimitExceededEventData,
   type Hook,
   type HookConfig,
   type HookEvent,
@@ -25,11 +28,8 @@ import {
 } from './context-manager.js';
 import { generateHookTestPayload, parseResponse, sendWebhookRequest } from './utils.js';
 
-type BetterOmit<T, Ignore> = {
-  [key in keyof T as key extends Ignore ? never : key]: T[key];
-};
-
-type HookEventPayloadWithoutHookId = BetterOmit<HookEventPayload, 'hookId'>;
+/** A payload before `sendWebhook` stamps it with the hook id and the delivery id. */
+type HookEventPayloadWithoutHookId = BetterOmit<HookEventPayload, 'hookId' | 'deliveryId'>;
 
 export const createHookLibrary = (queries: Queries) => {
   const {
@@ -51,7 +51,9 @@ export const createHookLibrary = (queries: Queries) => {
     const { id, config, signingKey } = hook;
     consoleLog.info(`\tTriggering hook ${id} due to ${payload.event} event`);
 
-    const json: HookEventPayload = { ...payload, hookId: id };
+    // One delivery = one request (ky retries included) = one audit log entry: the same id for both.
+    const deliveryId = generateStandardId();
+    const json: HookEventPayload = { ...payload, hookId: id, deliveryId };
     const logEntry = new LogEntry(`TriggerHook.${payload.event}`);
 
     logEntry.append({ hookId: id, hookRequest: { body: json } });
@@ -80,7 +82,7 @@ export const createHookLibrary = (queries: Queries) => {
     );
 
     await insertLog({
-      id: generateStandardId(),
+      id: deliveryId,
       key: logEntry.key,
       payload: logEntry.payload,
     });
@@ -125,7 +127,8 @@ export const createHookLibrary = (queries: Queries) => {
       return;
     }
 
-    const { interactionEvent, sessionId, applicationId, userIp, userAgent } = metadata;
+    const { interactionEvent, sessionId, applicationId, cimdClientId, userIp, userAgent } =
+      metadata;
 
     const found = await findAllHooks();
 
@@ -140,7 +143,7 @@ export const createHookLibrary = (queries: Queries) => {
 
     const webhooks: Array<{
       hook: Hook;
-      payload: BetterOmit<InteractionHookEventPayload, 'hookId'>;
+      payload: BetterOmit<InteractionHookEventPayload, 'hookId' | 'deliveryId'>;
     }> = [];
 
     for (const interactionHookResult of interactionHookResults) {
@@ -171,7 +174,8 @@ export const createHookLibrary = (queries: Queries) => {
         userIp,
         user: user && pick(user, ...userInfoSelectFields),
         application: application && pick(application, 'id', 'type', 'name', 'description'),
-      } satisfies BetterOmit<InteractionHookEventPayload, 'hookId'>;
+        cimdClientId,
+      } satisfies BetterOmit<InteractionHookEventPayload, 'hookId' | 'deliveryId'>;
 
       // eslint-disable-next-line @silverhand/fp/no-mutating-methods
       webhooks.push(...hooks.map((hook) => ({ hook, payload })));
@@ -264,12 +268,13 @@ export const createHookLibrary = (queries: Queries) => {
 
     // Fetch application detail if available
     const { applicationId } = metadata;
+    const { ip, ...metadataWithoutIp } = metadata;
     const application =
       foundHooks.length > 0 && applicationId
         ? await trySafe(async () => findApplicationById(applicationId))
         : undefined;
 
-    return contextArray.flatMap(({ event, ...rest }) => {
+    return contextArray.flatMap(({ event, includeRequestIp = true, ...rest }) => {
       const hooks = foundHooks.filter(
         ({ event: hookEvent, events, enabled }) =>
           enabled && (events.length > 0 ? events.includes(event) : event === hookEvent)
@@ -278,7 +283,8 @@ export const createHookLibrary = (queries: Queries) => {
       const payload = {
         event,
         createdAt: new Date().toISOString(),
-        ...metadata,
+        ...metadataWithoutIp,
+        ...conditional(includeRequestIp && { ip }),
         ...conditional(
           application && { application: pick(application, 'id', 'type', 'name', 'description') }
         ),
@@ -289,10 +295,62 @@ export const createHookLibrary = (queries: Queries) => {
     });
   }
 
+  /**
+   * Trigger a hook event directly, enriched with standard metadata.
+   *
+   * Unlike `triggerInteractionHooks` / `triggerDataHooks` / `triggerExceptionHooks`, this method
+   * does not go through the `HookContextManager` because callers (e.g., OIDC event listeners)
+   * operate outside the middleware request context. Instead it accepts explicit metadata fields
+   * and enriches the payload with application detail and standard fields (`ip`, `userAgent`)
+   * to match the shape of other exception hook events.
+   *
+   * Note: the hook-matching and payload-enrichment logic here intentionally mirrors what
+   * `buildWebhooks` does, since both need the same semantics but operate on different context
+   * shapes. Keep both in sync when changing either one.
+   */
+  const triggerEvent = async (
+    consoleLog: ConsoleLog,
+    event: 'Grant.LimitExceeded',
+    payload: GrantLimitExceededEventData,
+    metadata?: { ip?: string; userAgent?: string }
+  ) => {
+    const hooks = await findAllHooks();
+    const matchingHooks = hooks.filter(
+      ({ event: hookEvent, events, enabled }) =>
+        enabled && (events.length > 0 ? events.includes(event) : event === hookEvent)
+    );
+
+    if (matchingHooks.length === 0) {
+      return;
+    }
+
+    const { applicationId } = payload;
+    /** A CIMD-attributed payload carries no registered application id to enrich with. */
+    const application = conditional(
+      applicationId && (await trySafe(async () => findApplicationById(applicationId)))
+    );
+
+    const webhookPayloads = matchingHooks.map((hook) => ({
+      hook,
+      payload: {
+        event,
+        createdAt: new Date().toISOString(),
+        ...metadata,
+        ...conditional(
+          application && { application: pick(application, 'id', 'type', 'name', 'description') }
+        ),
+        ...payload,
+      } satisfies BetterOmit<ExceptionHookEventPayload, 'hookId' | 'deliveryId'>,
+    }));
+
+    await sendWebhooks(webhookPayloads, consoleLog);
+  };
+
   return {
     triggerInteractionHooks,
     triggerDataHooks,
     triggerExceptionHooks,
     triggerTestHook,
+    triggerEvent,
   };
 };

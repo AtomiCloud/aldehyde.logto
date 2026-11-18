@@ -36,6 +36,16 @@ const security = {
       description:
         'Cloudflare のスマート CAPTCHA 代替案。視覚的パズルを用いず、シームレスなユーザー体験を提供しながらボット保護を実現します。',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        '視覚的パズルやサードパーティサービスを使わない、オープンソースでセルフホスト型のプルーフ・オブ・ワーク CAPTCHA。他の CAPTCHA サービスにアクセスできない地域に最適です。',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        '中国本土で安定して利用できる、ローカライズされたチャレンジを備えた GeeTest の適応型 CAPTCHA です。',
+    },
   },
   captcha_details: {
     back_to_security: 'セキュリティへ戻る',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com（デフォルト）または recaptcha.net',
     recaptcha_key_id: 'reCAPTCHA キー ID',
     recaptcha_api_key: 'プロジェクトの API キー',
+    cap_endpoint: 'Cap エンドポイント',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'このエンドポイントは HTTP を使用しており、ローカル開発にのみ適しています。ブラウザーは HTTPS のサインインページからの HTTP リクエストをブロックし、シークレットキーは暗号化されずに送信されます。本番環境では HTTPS を使用してください。',
+    geetest_captcha_id: 'CAPTCHA ID',
+    geetest_captcha_key: 'CAPTCHA キー',
     deletion_description: 'この CAPTCHA プロバイダーを削除してもよろしいですか？',
     captcha_deleted: 'CAPTCHA プロバイダーが正常に削除されました',
     setup_captcha: 'CAPTCHA をセットアップ',
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: 'チェックボックス',
     mode_notice:
       '認証モードは Google Cloud Console の reCAPTCHA キー設定で定義されています。ここでモードを変更するには、一致するキータイプが必要です。',
+    score_threshold: 'スコアしきい値',
+    score_threshold_description:
+      'しきい値を下回るスコアは拒否されます。0.0 はすべてを許可し、1.0 は完全なスコアのみを許可します。デフォルトは 0.5 です。',
+    score_threshold_error: 'スコアしきい値は 0 から 1 の間である必要があります。',
   },
   password_policy: {
     password_requirements: 'パスワードの要件',
@@ -143,23 +163,45 @@ const security = {
     },
     manual_unlock: {
       title: '手動での解除',
-      description: 'ユーザーの身元確認と識別子の入力により、即座にロックを解除します。',
-      unblock_by_identifiers: '識別子での解除',
+      description:
+        'ユーザーの身元確認と識別子またはユーザー ID の入力により、即座にロックを解除します。',
+      unblock_by_identifiers: '識別子またはユーザー ID での解除',
       modal_description_1:
-        '識別子はサインイン/サインアップの複数の失敗により一時的にロックされました。セキュリティを保護するため、ロックアウト期間後にアクセスが自動的に復元されます。',
+        '識別子またはユーザー ID は、サインイン/サインアップまたはセキュリティ検証の複数の失敗により一時的にロックされました。セキュリティを保護するため、ロックアウト期間後にアクセスが自動的に復元されます。',
       modal_description_2:
         'ユーザーの身元を確認し、無許可のアクセス試行がないことを確認した場合にのみ、手動でロックを解除してください。',
-      placeholder: '識別子を入力してください (メールアドレス / 電話番号 / ユーザー名)',
+      placeholder:
+        '識別子またはユーザー ID を入力してください (メールアドレス / 電話番号 / ユーザー名 / ユーザー ID)',
       confirm_button_text: '今すぐ解除',
       success_toast: '正常に解除されました',
-      duplicate_identifier_error: '識別子は既に追加されています',
-      empty_identifier_error: '少なくとも 1 つの識別子を入力してください',
+      duplicate_identifier_error: '識別子またはユーザー ID は既に追加されています',
+      empty_identifier_error: '少なくとも 1 つの識別子またはユーザー ID を入力してください',
     },
   },
   blocklist: {
     card_title: 'メールブロックリスト',
     card_description:
       'ハイリスクまたは不要なメールアドレスをブロックすることで、ユーザーベースを制御します。',
+    custom_email_allowlist: {
+      title: 'カスタムメールアドレスを許可',
+      description:
+        '新規登録および新しくリンクされるメールに対して、特定のメールドメイン、メールアドレス、またはワイルドカードパターンのみを許可するルールを追加します。例：bar@example.com、@example.com、foo*@example.com、*@example.com。gmail.com と googlemail.com のドメインは同等として扱われ、ローカル部分のドットは無視されるため、foo.bar@gmail.com は foobar@googlemail.com と一致します。',
+      placeholder: 'メールアドレス、ドメイン、またはワイルドカードパターンを入力',
+      duplicate_error:
+        'メールアドレス、ドメイン、またはワイルドカード付きメールアドレスパターンは既に追加されています',
+      invalid_format_error:
+        '有効なメールアドレス（bar@example.com）、ドメイン（@example.com）、またはワイルドカード付きメールアドレスパターン（foo*@example.com、*@example.com）である必要があります',
+      warnings: {
+        identical_entries:
+          '許可リストの一部の項目はブロックルールにも存在します。一致するメールは引き続きブロックされる可能性があります。',
+        blocked_exact_email:
+          '許可リストの一部の完全一致メールがブロックルールに一致しています。一致するメールは引き続きブロックされる可能性があります。',
+        blocked_subaddressing:
+          '許可リストの一部の項目にプラス記号（+）が含まれていますが、メールサブアドレッシングはブロックされています。',
+        effectively_unusable:
+          'これらのチェックに基づくと、現在の許可リストでは新しいメールを許可できない可能性があります。',
+      },
+    },
     disposable_email: {
       title: '使い捨てメールアドレスをブロック',
       description:
@@ -173,12 +215,12 @@ const security = {
     custom_email_address: {
       title: 'カスタムメールアドレスをブロック',
       description:
-        'UI を介して登録またはリンクできない特定のメールドメインまたはメールアドレスを追加します。',
-      placeholder:
-        'ブロックするメールアドレスまたはドメインを入力してください（例：bar@example.com、@example.com）',
-      duplicate_error: 'メールアドレスまたはドメインは既に追加されています',
+        '特定のメールドメイン、メールアドレス、またはワイルドカードパターンが UI を介して登録またはリンクできないようにするルールを追加します。例：bar@example.com、@example.com、foo*@example.com、*@example.com。gmail.com と googlemail.com のドメインは同等として扱われ、ローカル部分のドットは無視されるため、foo.bar@gmail.com は foobar@googlemail.com と一致します。',
+      placeholder: 'メールアドレス、ドメイン、またはワイルドカードパターンを入力',
+      duplicate_error:
+        'メールアドレス、ドメイン、またはワイルドカード付きメールアドレスパターンは既に追加されています',
       invalid_format_error:
-        '有効なメールアドレス（bar@example.com）またはドメイン（@example.com）である必要があります',
+        '有効なメールアドレス（bar@example.com）、ドメイン（@example.com）、またはワイルドカード付きメールアドレスパターン（foo*@example.com、*@example.com）である必要があります',
     },
   },
 };

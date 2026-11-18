@@ -28,7 +28,7 @@ const oidcModelInstances = {
   findPayloadByPayloadField: jest.fn(),
   findPayloadByUid: jest.fn(),
   findPayloadByUserCode: jest.fn(),
-  consumeInstanceById: jest.fn(),
+  consumeInstanceById: jest.fn(async () => true),
   destroyInstanceById: jest.fn(),
   revokeInstanceByGrantId: jest.fn(),
 };
@@ -149,6 +149,23 @@ describe('postgres Adapter', () => {
     expect(revokeInstanceByGrantId).toBeCalledWith(modelName, grantId);
   });
 
+  it.each([
+    ['AuthorizationCode', { error: 'invalid_grant' }],
+    ['DeviceCode', { error: 'invalid_grant' }],
+    [
+      'PushedAuthorizationRequest',
+      {
+        error: 'invalid_request_uri',
+        error_description: 'request_uri is invalid, expired, or was already used',
+      },
+    ],
+  ])('rejects %s once it is no longer consumable', async (modelName, expected) => {
+    consumeInstanceById.mockResolvedValueOnce(false);
+    const adapter = postgresAdapter(mockEnvSet, queries, modelName);
+
+    await expect(adapter.consume('fooId')).rejects.toMatchObject(expected);
+  });
+
   it('includes runtime custom-domain redirect URI for Account Center built-in app', async () => {
     const customDomain = 'https://account.custom.test';
     const adapter = postgresAdapter(mockBuiltInAppEnvSet(customDomain), queries, 'Client');
@@ -175,5 +192,82 @@ describe('postgres Adapter', () => {
     expect(application?.post_logout_redirect_uris).toEqual(
       expect.arrayContaining([`${customDomain}/demo-app`])
     );
+  });
+});
+
+/**
+ * Load the adapter (and its error classes) after resetting the module registry, so the error
+ * classes asserted below share the identities of the ones the adapter throws.
+ */
+const loadClientAdapter = async ({
+  isSsrfProtectionEnabled = true,
+  ssrfAllowedAddresses = [],
+  cimdEnabled = true,
+  findApplicationById,
+}: {
+  isSsrfProtectionEnabled?: boolean;
+  ssrfAllowedAddresses?: string[];
+  cimdEnabled?: boolean;
+  findApplicationById: jest.Mock;
+}) => {
+  jest.resetModules();
+  mockEsm('#src/env-set/index.js', () => ({
+    EnvSet: {
+      values: { isSsrfProtectionEnabled, ssrfAllowedAddresses },
+    },
+  }));
+
+  /**
+   * Sequential imports on purpose: concurrent `import()` calls after `jest.resetModules()`
+   * race the ESM linking of the shared dependency graph ("Module status must not be unlinked
+   * or linking").
+   */
+  const { default: loadedAdapter } = await import('./adapter.js');
+  const { errors } = await import('oidc-provider');
+
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal env-set stub scoped to the field the adapter reads
+  const envSet = { oidc: { cimdEnabled } } as EnvSet;
+  const adapter = loadedAdapter(
+    envSet,
+    new MockQueries({ applications: { findApplicationById } }),
+    'Client'
+  );
+
+  return {
+    // eslint-disable-next-line unicorn/no-array-callback-reference -- `Adapter#find` is not an array method
+    findClient: async (clientId: string) => adapter.find(clientId),
+    errors,
+  };
+};
+
+describe('client adapter `find` fallback contract', () => {
+  const registeredClientId = 'some_client_id';
+  const cimdClientId = 'https://client.example.com/metadata.json';
+
+  it('resolves a CIMD client ID to undefined without a database lookup while CIMD is effectively enabled', async () => {
+    const findApplicationById = jest.fn();
+    const { findClient } = await loadClientAdapter({ findApplicationById });
+
+    await expect(findClient(cimdClientId)).resolves.toBeUndefined();
+    expect(findApplicationById).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['CIMD is disabled for the tenant', { cimdEnabled: false }],
+    ['SSRF protection is off', { isSsrfProtectionEnabled: false }],
+    ['private addresses are allowlisted', { ssrfAllowedAddresses: ['10.0.0.0/8'] }],
+  ])('looks a CIMD client ID up as a registered application when %s', async (_, flags) => {
+    const findApplicationById = jest.fn().mockRejectedValue(new Error('not found'));
+    const { findClient, errors } = await loadClientAdapter({ ...flags, findApplicationById });
+
+    await expect(findClient(cimdClientId)).rejects.toThrow(errors.InvalidClient);
+    expect(findApplicationById).toHaveBeenCalledWith(cimdClientId);
+  });
+
+  it('folds lookup errors of a registered client ID into invalid_client while CIMD is effectively enabled', async () => {
+    const findApplicationById = jest.fn().mockRejectedValue(new Error('connection reset'));
+    const { findClient, errors } = await loadClientAdapter({ findApplicationById });
+
+    await expect(findClient(registeredClientId)).rejects.toThrow(errors.InvalidClient);
   });
 });

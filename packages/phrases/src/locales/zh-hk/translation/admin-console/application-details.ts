@@ -279,6 +279,13 @@ const application_details = {
     email_address: '電子郵件地址',
     email_address_description: '使用電子郵件地址作為名稱 ID',
   },
+  saml_idp_authentication: {
+    always_force_authn: '始終強制身份驗證',
+    always_force_authn_description:
+      '要求用戶每次訪問此應用程式時再次登入，即使他們已經有 Logto 會話。',
+    always_force_authn_tip:
+      '啟用後，Logto 總是要求用戶再次登入此應用程式。禁用時，除非服務提供者要求使用 ForceAuthn 進行新的身份驗證，否則將重用現有的 Logto 會話。',
+  },
   saml_encryption_config: {
     encrypt_assertion: '加密 SAML 斷言',
     encrypt_assertion_description: '啟用此選項後，SAML 斷言將被加密。',
@@ -299,6 +306,9 @@ const application_details = {
     col_logto_claims: 'Logto 的值',
     col_sp_claims: '您的應用程式的值名稱',
     add_button: '添加另一個',
+    static_attributes_title: '靜態屬性',
+    static_attributes_description:
+      '添加在每個 SAML 斷言中發送的固定屬性，例如您的應用程式需要的常數值。',
   },
   concurrent_device_limit,
 };

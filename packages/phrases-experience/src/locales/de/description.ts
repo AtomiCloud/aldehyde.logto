@@ -37,6 +37,8 @@ const description = {
   reset_password: 'Passwort vergessen',
   reset_password_description:
     'Gib die {{types, list(type: disjunction;)}} deines Kontos ein und wir senden dir einen Bestätigungscode um dein Passwort zurückzusetzen.',
+  reset_password_magic_link_description:
+    'Gib die mit deinem Konto verknüpfte E-Mail-Adresse ein, um mit dem Zurücksetzen deines Passworts fortzufahren.',
   new_password: 'Neues Passwort',
   set_password: 'Passwort setzen',
   password_changed: 'Passwort geändert',
@@ -105,6 +107,8 @@ const description = {
     'Ihr Unternehmen hat Single Sign-On für das E-Mail-Konto {{email}} aktiviert. Sie können sich weiterhin mit den folgenden SSO-Anbietern anmelden.',
   single_sign_on_enabled: 'Single Sign-On ist für dieses Konto aktiviert',
   authorize_title: 'Autorisieren {{name}}',
+  unregistered_client_notice:
+    'Diese App wird von <hostname>{{host}}</hostname> selbst deklariert, einschließlich Name und Logo. Bitte überprüfen Sie den Hostnamen, bevor Sie fortfahren.',
   request_permission: '{{name}} fordert Zugang zu:',
   grant_organization_access: 'Gewähren Sie der Organisation Zugriff:',
   authorize_personal_data_usage: 'Erlauben Sie die Nutzung Ihrer persönlichen Daten:',
@@ -132,6 +136,8 @@ const description = {
   switch_account_title: 'Du bist derzeit als {{account}} angemeldet',
   switch_account_description:
     'Um fortzufahren, wirst du vom aktuellen Konto abgemeldet und automatisch zum neuen Konto gewechselt.',
+  continue_to_app_title: 'Zurück zur App',
+  continue_to_app_description: 'Fahre fort, um zur App zurückzukehren.',
   about_yourself: 'Erzähl uns etwas über dich',
   verify_identity: 'Bestätige deine Identität',
   choose_verification_method: 'Wähle, wie du dich anmelden möchtest',
@@ -144,6 +150,7 @@ const description = {
     phone_verification_code: 'Telefon-Bestätigungscode',
     verification_code_description: 'Senden an {{target}}',
   },
+  select_wallet: 'Wallet auswählen',
 };
 
 export default Object.freeze(description);

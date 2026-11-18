@@ -1,3 +1,4 @@
+export * from './account-center.js';
 export * from './connector.js';
 export * from './log/index.js';
 export * from './oidc-config.js';
@@ -36,3 +37,6 @@ export * from './custom-profile-fields.js';
 export * from './secrets.js';
 export * from './user-logto-config.js';
 export * from './user-sessions.js';
+export * from './trusted-device.js';
+export * from './personal-access-token.js';
+export * from './authentication-context.js';

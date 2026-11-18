@@ -75,6 +75,9 @@ const user_details = {
   },
   mfa: {
     field_name: 'Autenticación de dos factores',
+    require_mfa: 'Requerir configuración de MFA',
+    require_mfa_description:
+      'Este usuario debe configurar al menos un factor de MFA antes de completar el inicio de sesión. No puede omitir la configuración.',
     field_description: 'Este usuario ha habilitado factores de autenticación de 2 pasos.',
     name_column: 'Autenticación de dos factores',
     field_description_empty: 'Este usuario no ha habilitado factores de autenticación de 2 pasos.',
@@ -99,6 +102,11 @@ const user_details = {
     '¿Está seguro de que desea reactivar a este usuario? Al hacerlo, permitirá cualquier intento de inicio de sesión para este usuario.',
   reactivate_action: 'Reactivar',
   user_reactivated: 'El usuario ha sido reactivado.',
+  unlock_user: 'Desbloquear usuario',
+  unlock_user_reminder:
+    '¿Estás seguro de que quieres desbloquear a este usuario? Esto borrará todos los bloqueos causados por intentos fallidos de inicio de sesión y verificación de seguridad. Desbloquea manualmente solo si has confirmado la identidad del usuario y te has asegurado de que no hubo intentos de acceso no autorizados.',
+  unlock_action: 'Desbloquear',
+  user_unlocked: 'El usuario ha sido desbloqueado.',
   roles: {
     name_column: 'Rol de usuario',
     description_column: 'Descripción',
@@ -186,7 +194,7 @@ const user_details = {
     access_created_at_column: 'Acceso creado el',
     revoke_access_title: '¿Revocar acceso?',
     revoke_access_description:
-      'Esto revocará el acceso de la aplicación a la cuenta de este usuario en todos los dispositivos. El usuario deberá volver a autorizarla para recuperar el acceso.',
+      'Esto revocará el acceso de la aplicación a la cuenta de este usuario en todos los dispositivos. El usuario deberá volver a autorizarla para recuperar el acceso. Los tokens de acceso emitidos previamente pueden seguir siendo válidos hasta que expiren.',
   },
   connections: {
     title: 'Conexión',

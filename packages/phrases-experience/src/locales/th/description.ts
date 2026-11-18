@@ -36,6 +36,8 @@ const description = {
   reset_password: 'รีเซ็ตรหัสผ่าน',
   reset_password_description:
     'กรอก {{types, list(type: disjunction;)}} ที่เชื่อมโยงกับบัญชีของคุณ แล้วเราจะส่งรหัสยืนยันเพื่อรีเซ็ตรหัสผ่าน',
+  reset_password_magic_link_description:
+    'ป้อนที่อยู่อีเมลที่เชื่อมโยงกับบัญชีของคุณเพื่อดำเนินการรีเซ็ตรหัสผ่านต่อ',
   new_password: 'รหัสผ่านใหม่',
   set_password: 'ตั้งรหัสผ่าน',
   password_changed: 'เปลี่ยนรหัสผ่านแล้ว',
@@ -101,6 +103,8 @@ const description = {
     'องค์กรของคุณได้เปิดใช้งาน Single Sign-On สำหรับอีเมล {{email}} คุณสามารถเข้าสู่ระบบผ่าน SSO ด้านล่างนี้',
   single_sign_on_enabled: 'บัญชีนี้เปิดใช้งาน Single Sign-On แล้ว',
   authorize_title: 'อนุมัติ {{name}}',
+  unregistered_client_notice:
+    'แอปนี้ประกาศตัวเองโดย <hostname>{{host}}</hostname> รวมถึงชื่อและโลโก้ โปรดตรวจสอบชื่อโฮสต์ก่อนดำเนินการต่อ',
   request_permission: '{{name}} กำลังขอสิทธิ์เข้าถึง:',
   grant_organization_access: 'ให้สิทธิ์เข้าถึงองค์กร:',
   authorize_personal_data_usage: 'อนุญาตให้ใช้ข้อมูลส่วนตัวของคุณ:',
@@ -125,6 +129,8 @@ const description = {
   switch_account_title: 'คุณกำลังเข้าสู่ระบบในชื่อ {{account}}',
   switch_account_description:
     'ในการดำเนินการต่อ คุณจะออกจากบัญชีปัจจุบัน และสลับไปยังบัญชีใหม่โดยอัตโนมัติ',
+  continue_to_app_title: 'กลับไปยังแอป',
+  continue_to_app_description: 'ดำเนินการต่อเพื่อกลับไปยังแอป',
   about_yourself: 'บอกเราเกี่ยวกับตัวคุณ',
   verify_identity: 'ยืนยันตัวตนของคุณ',
   choose_verification_method: 'เลือกวิธีการเข้าสู่ระบบ',
@@ -137,6 +143,7 @@ const description = {
     phone_verification_code: 'รหัสยืนยันทางโทรศัพท์',
     verification_code_description: 'ส่งไปที่ {{target}}',
   },
+  select_wallet: 'เลือกกระเป๋าเงิน',
 };
 
 export default Object.freeze(description);

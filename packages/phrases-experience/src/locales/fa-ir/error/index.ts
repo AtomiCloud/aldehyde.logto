@@ -33,13 +33,25 @@ const error = {
   invalid_link: 'لینک نامعتبر است',
   invalid_link_description: 'توکن یک‌بار مصرف شما ممکن است منقضی شده یا دیگر معتبر نباشد.',
   captcha_verification_failed: 'تأیید کپچا ناموفق بود.',
+  send_verification_code_failed: 'ارسال کد تأیید ناموفق بود. لطفاً بعداً دوباره تلاش کنید.',
+  send_verification_code_failed_use_password:
+    'ارسال کد تأیید ناموفق بود. لطفاً به جای آن با رمز عبور وارد شوید.',
   terms_acceptance_required: 'پذیرش شرایط الزامی است',
   terms_acceptance_required_description: 'برای ادامه باید با شرایط موافقت کنید.',
   something_went_wrong: 'مشکلی پیش آمد',
+  account_suspended: 'حساب معلق شد',
+  account_suspended_description: 'این حساب معلق شده است. لطفاً برای کمک با مدیر تماس بگیرید.',
   access_denied: 'دسترسی رد شد',
   application_access_denied:
     'شما مجاز به دسترسی به این برنامه نیستید. لطفاً با مدیر سیستم تماس بگیرید.',
   feature_not_enabled: 'شما مجاز به دسترسی به این ویژگی نیستید. لطفاً با مدیر سیستم تماس بگیرید.',
+  wallet_not_found:
+    'هیچ کیف پول اتریوم پیدا نشد. افزونه کیف پول مرورگر را نصب کنید و دوباره تلاش کنید.',
+  wallet_not_supported: 'ورود با کیف پول فقط در مرورگری با افزونه کیف پول نصب‌شده پشتیبانی می‌شود.',
+  wallet_request_rejected: 'درخواست کیف پول رد شد. لطفاً دوباره تلاش کنید.',
+  wallet_unsupported_chain:
+    'کیف پول شما به شبکه‌ای غیرپشتیبانی‌شده متصل است. شبکه را تغییر دهید و دوباره تلاش کنید.',
+  wallet_signature_invalid: 'امضای کیف پول نامعتبر یا منقضی شده است. لطفاً دوباره تلاش کنید.',
 };
 
 export default Object.freeze(error);

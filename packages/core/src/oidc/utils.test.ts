@@ -1,9 +1,13 @@
+/* eslint-disable max-lines -- The OIDC utility cases share the mocks set up in this file. */
 import {
   ApplicationType,
+  AuthenticationContextMode,
   CustomClientMetadataKey,
   FirstScreen,
   GrantType,
   InteractionMode,
+  LogtoAcr,
+  Theme,
   demoAppApplicationId,
 } from '@logto/schemas';
 
@@ -19,6 +23,15 @@ import {
 } from './utils.js';
 
 describe('getConstantClientMetadata()', () => {
+  it('requires auth_time only for SAML clients', () => {
+    expect(getConstantClientMetadata(mockEnvSet, ApplicationType.SAML).require_auth_time).toBe(
+      true
+    );
+    expect(
+      getConstantClientMetadata(mockEnvSet, ApplicationType.Traditional).require_auth_time
+    ).toBeUndefined();
+  });
+
   it('should return correct metadata for SPA', () => {
     expect(getConstantClientMetadata(mockEnvSet, ApplicationType.SPA)).toMatchObject({
       application_type: 'web',
@@ -375,6 +388,23 @@ describe('buildLoginPromptUrl', () => {
     expect(buildLoginPromptUrl({ direct_sign_in: '' })).toBe('sign-in');
   });
 
+  it('should forward confirm_redirect_policy to every entry, including step-up', () => {
+    expect(buildLoginPromptUrl({ confirm_redirect_policy: 'password' }, { appId: 'foo' })).toBe(
+      'sign-in?app_id=foo&confirm_redirect_policy=password'
+    );
+    expect(
+      buildLoginPromptUrl({ confirm_redirect_policy: 'password', direct_sign_in: 'social:google' })
+    ).toBe('direct/social/google?confirm_redirect_policy=password&fallback=sign-in');
+    expect(
+      buildLoginPromptUrl({ confirm_redirect_policy: 'password' }, undefined, {
+        authenticationContext: {
+          mode: AuthenticationContextMode.StepUp,
+          requestedAcrValues: [LogtoAcr.Mfa],
+        },
+      })
+    ).toBe('step-up?confirm_redirect_policy=password');
+  });
+
   it('should return the correct url for mixed parameters', () => {
     expect(
       buildLoginPromptUrl({
@@ -394,19 +424,40 @@ describe('buildLoginPromptUrl', () => {
     expect(
       buildLoginPromptUrl({ one_time_token: 'token_value', login_hint: 'user@mail.com' })
     ).toBe('sign-in?one_time_token=token_value&login_hint=user%40mail.com');
+
+    expect(
+      buildLoginPromptUrl({
+        first_screen: FirstScreen.ResetPassword,
+        one_time_token: 'token_value',
+      })
+    ).toBe('reset-password?one_time_token=token_value');
+
+    expect(
+      buildLoginPromptUrl({
+        first_screen: FirstScreen.ResetPassword,
+        one_time_token: 'token_value',
+        login_hint: 'user@mail.com',
+      })
+    ).toBe('reset-password?one_time_token=token_value&login_hint=user%40mail.com');
   });
 
   it('should append shared experience params to the url', () => {
     expect(
       buildLoginPromptUrl(
         { first_screen: FirstScreen.SignIn },
-        { appId: 'app_123', organizationId: 'org_123', uiLocales: 'fr-CA fr' }
+        { appId: 'app_123', organizationId: 'org_123', uiLocales: 'fr-CA fr', theme: Theme.Dark }
       )
+      // The theme is carried by the flow cookie, not the page URL.
     ).toBe('sign-in?app_id=app_123&organization_id=org_123&ui_locales=fr-CA+fr');
   });
 });
 
 describe('parseSharedExperienceParams', () => {
+  it('should keep a supported theme and drop an unsupported one', () => {
+    expect(parseSharedExperienceParams({ theme: 'dark' })).toEqual({ theme: Theme.Dark });
+    expect(parseSharedExperienceParams({ theme: 'sepia' })).toEqual({});
+  });
+
   it('should ignore repeated query values instead of throwing', () => {
     expect(
       parseSharedExperienceParams({
@@ -419,3 +470,4 @@ describe('parseSharedExperienceParams', () => {
     });
   });
 });
+/* eslint-enable max-lines */

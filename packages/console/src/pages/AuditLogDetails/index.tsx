@@ -1,5 +1,5 @@
 /* eslint-disable complexity */
-import type { Application, Hook, Log, User } from '@logto/schemas';
+import type { Application, Hook, LogResponse, User } from '@logto/schemas';
 import { isBuiltInApplicationId } from '@logto/schemas';
 import { conditional } from '@silverhand/essentials';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import useSWR from 'swr';
 
 import ApplicationName from '@/components/ApplicationName';
 import { isImpersonationLog } from '@/components/AuditLogTable/components/EventName/utils';
+import ClientIdentifier from '@/components/ClientIdentifier';
 import DetailsPage from '@/components/DetailsPage';
 import PageMeta from '@/components/PageMeta';
 import UserName from '@/components/UserName';
@@ -35,7 +36,7 @@ function AuditLogDetails() {
   const { appId, userId, hookId, logId } = useParams();
   const { pathname } = useLocation();
   const { t } = useTranslation(undefined, { keyPrefix: 'admin_console' });
-  const { data, error, mutate } = useSWR<Log, RequestError>(logId && `api/logs/${logId}`);
+  const { data, error, mutate } = useSWR<LogResponse, RequestError>(logId && `api/logs/${logId}`);
   const { data: appData } = useSWR<Application, RequestError>(appId && `api/applications/${appId}`);
   const { data: userData } = useSWR<User, RequestError>(userId && `api/users/${userId}`);
   const { data: hookData } = useSWR<Hook, RequestError>(hookId && `api/hooks/${hookId}`);
@@ -100,7 +101,9 @@ function AuditLogDetails() {
                     <div className={styles.infoItem}>
                       <div className={styles.label}>{t('log_details.application')}</div>
                       <div>
-                        {data.payload.applicationId ? (
+                        {data.payload.cimdClientId ? (
+                          <ClientIdentifier isWrapped value={data.payload.cimdClientId} />
+                        ) : data.payload.applicationId ? (
                           <ApplicationName
                             isLink={!isBuiltInApplicationId(data.payload.applicationId)}
                             applicationId={data.payload.applicationId}

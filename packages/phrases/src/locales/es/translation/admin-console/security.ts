@@ -36,6 +36,16 @@ const security = {
       description:
         'La alternativa inteligente de CAPTCHA de Cloudflare que proporciona protección contra bots no intrusiva mientras garantiza una experiencia de usuario fluida sin acertijos visuales.',
     },
+    cap: {
+      name: 'Cap',
+      description:
+        'CAPTCHA de código abierto y autoalojado basado en prueba de trabajo, sin acertijos visuales ni servicios de terceros, ideal para regiones donde otros servicios de CAPTCHA no son accesibles.',
+    },
+    geetest: {
+      name: 'GeeTest',
+      description:
+        'CAPTCHA adaptativo de GeeTest con desafíos localizados y buen rendimiento en China continental.',
+    },
   },
   captcha_details: {
     back_to_security: 'Volver a seguridad',
@@ -51,6 +61,12 @@ const security = {
     domain_placeholder: 'www.google.com (predeterminado) o recaptcha.net',
     recaptcha_key_id: 'ID de la clave reCAPTCHA',
     recaptcha_api_key: 'Clave API del proyecto',
+    cap_endpoint: 'Endpoint de Cap',
+    cap_endpoint_placeholder: 'https://cap.example.com',
+    cap_endpoint_http_notice:
+      'Este endpoint usa HTTP, lo que solo es adecuado para el desarrollo local. Los navegadores bloquean las solicitudes HTTP desde una página de inicio de sesión HTTPS y la clave secreta se enviaría sin cifrar. Usa HTTPS en producción.',
+    geetest_captcha_id: 'ID de CAPTCHA',
+    geetest_captcha_key: 'Clave de CAPTCHA',
     deletion_description: '¿Estás seguro de que quieres eliminar este proveedor de CAPTCHA?',
     captcha_deleted: 'Proveedor de CAPTCHA eliminado con éxito',
     setup_captcha: 'Configurar CAPTCHA',
@@ -59,6 +75,10 @@ const security = {
     mode_checkbox: 'Casilla de verificación',
     mode_notice:
       'El modo de verificación se define en la configuración de tu clave reCAPTCHA en Google Cloud Console. Cambiar el modo aquí requiere un tipo de clave coincidente.',
+    score_threshold: 'Umbral de puntuación',
+    score_threshold_description:
+      'Las puntuaciones por debajo del umbral se rechazan. 0.0 permite todas, 1.0 solo permite puntuaciones perfectas. El valor predeterminado es 0.5.',
+    score_threshold_error: 'El umbral de puntuación debe estar entre 0 y 1.',
   },
   password_policy: {
     password_requirements: 'Requisitos de contraseña',
@@ -151,24 +171,43 @@ const security = {
     manual_unlock: {
       title: 'Desbloqueo manual',
       description:
-        'Desbloquear usuarios inmediatamente confirmando su identidad e ingresando su identificador.',
-      unblock_by_identifiers: 'Desbloquear por identificador',
+        'Desbloquear usuarios inmediatamente confirmando su identidad e ingresando su identificador o ID de usuario.',
+      unblock_by_identifiers: 'Desbloquear por identificador o ID de usuario',
       modal_description_1:
-        'Un identificador se bloqueó temporalmente debido a múltiples intentos de inicio/registro fallidos. Para proteger la seguridad, el acceso se restaurará automáticamente después de la duración del bloqueo.',
+        'Un identificador o ID de usuario se bloqueó temporalmente debido a múltiples intentos fallidos de inicio/registro o de verificación de seguridad. Para proteger la seguridad, el acceso se restaurará automáticamente después de la duración del bloqueo.',
       modal_description_2:
         ' Solo desbloquear manualmente si has confirmado la identidad del usuario y asegurado que no hubo intentos de acceso no autorizados.',
       placeholder:
-        'Ingresa identificadores (correo electrónico / número de teléfono / nombre de usuario)',
+        'Ingresa identificadores o IDs de usuario (correo electrónico / número de teléfono / nombre de usuario / ID de usuario)',
       confirm_button_text: 'Desbloquear ahora',
       success_toast: 'Desbloqueado con éxito',
-      duplicate_identifier_error: 'Identificador ya agregado',
-      empty_identifier_error: 'Por favor, ingresa al menos un identificador',
+      duplicate_identifier_error: 'Identificador o ID de usuario ya agregado',
+      empty_identifier_error: 'Por favor, ingresa al menos un identificador o ID de usuario',
     },
   },
   blocklist: {
     card_title: 'Lista de bloqueo de correos electrónicos',
     card_description:
       'Toma el control de tu base de usuarios al bloquear direcciones de correo electrónico de alto riesgo o no deseadas.',
+    custom_email_allowlist: {
+      title: 'Permitir direcciones de correo personalizadas',
+      description:
+        'Agrega reglas para permitir solo dominios de correo, direcciones de correo o patrones comodín específicos para nuevos registros y correos vinculados recientemente. Ejemplos: bar@example.com, @example.com, foo*@example.com, *@example.com. Los dominios gmail.com y googlemail.com se tratan como equivalentes y los puntos de la parte local se ignoran, por lo que foo.bar@gmail.com coincide con foobar@googlemail.com.',
+      placeholder: 'Ingresa una dirección de correo, dominio o patrón comodín',
+      duplicate_error: 'La dirección de correo, dominio o patrón comodín ya se agregó',
+      invalid_format_error:
+        'Debe ser una dirección de correo válida (bar@example.com), un dominio (@example.com) o un patrón comodín (foo*@example.com, *@example.com)',
+      warnings: {
+        identical_entries:
+          'Algunas entradas de la lista de permitidos también existen en las reglas de bloqueo. Los correos coincidentes aún pueden bloquearse.',
+        blocked_exact_email:
+          'Algunos correos exactos de la lista de permitidos coinciden con una regla de bloqueo. Los correos coincidentes aún pueden bloquearse.',
+        blocked_subaddressing:
+          'Algunas entradas de la lista de permitidos contienen un signo más (+), pero el subdireccionamiento de correo está bloqueado.',
+        effectively_unusable:
+          'Según estas comprobaciones, es posible que la lista de permitidos actual no permita pasar ningún correo nuevo.',
+      },
+    },
     disposable_email: {
       title: 'Bloquear direcciones de correo electrónico desechables',
       description:
@@ -182,12 +221,12 @@ const security = {
     custom_email_address: {
       title: 'Bloquear direcciones de correo electrónico personalizadas',
       description:
-        'Agrega dominios de correo específicos o direcciones de correo electrónico que no pueden registrarse o vincularse a través de la interfaz de usuario.',
-      placeholder:
-        'Ingresa la dirección de correo electrónico o dominio bloqueado (por ejemplo, bar@example.com, @example.com)',
-      duplicate_error: 'La dirección de correo electrónico o el dominio ya fue agregado',
+        'Agrega reglas para impedir que dominios de correo, direcciones de correo o patrones comodín específicos se registren o vinculen mediante la interfaz de usuario. Ejemplos: bar@example.com, @example.com, foo*@example.com, *@example.com. Los dominios gmail.com y googlemail.com se tratan como equivalentes y los puntos de la parte local se ignoran, por lo que foo.bar@gmail.com coincide con foobar@googlemail.com.',
+      placeholder: 'Ingresa una dirección de correo, dominio o patrón comodín',
+      duplicate_error:
+        'La dirección de correo electrónico, el dominio o el patrón de dirección de correo con comodín ya fue agregado',
       invalid_format_error:
-        'Debe ser una dirección de correo electrónico válida (bar@example.com) o un dominio (@example.com)',
+        'Debe ser una dirección de correo electrónico válida (bar@example.com), un dominio (@example.com) o un patrón de dirección de correo con comodín (foo*@example.com, *@example.com)',
     },
   },
 };

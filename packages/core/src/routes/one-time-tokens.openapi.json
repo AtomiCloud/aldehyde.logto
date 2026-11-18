@@ -27,6 +27,9 @@
         "responses": {
           "200": {
             "description": "A list of one-time tokens."
+          },
+          "403": {
+            "description": "The request carries the `logto-read-only-access: true` header, which cannot read one-time tokens."
           }
         }
       },
@@ -45,7 +48,7 @@
                     "description": "The expiration time in seconds. If not provided, defaults to 10 mins (600 seconds)."
                   },
                   "context": {
-                    "description": "Additional context to store with the one-time token. This can be used to store arbitrary data that will be associated with the token."
+                    "description": "Additional context to store with the one-time token. Set `interactionEvent` to scope the token to a specific flow, such as `ForgotPassword` for reset-password magic links."
                   }
                 }
               }
@@ -66,6 +69,9 @@
         "responses": {
           "200": {
             "description": "The one-time token found by ID."
+          },
+          "403": {
+            "description": "The request carries the `logto-read-only-access: true` header, which cannot read one-time tokens."
           }
         }
       },

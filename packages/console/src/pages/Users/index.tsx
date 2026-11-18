@@ -8,6 +8,7 @@ import Plus from '@/assets/icons/plus.svg?react';
 import UsersEmptyDark from '@/assets/images/users-empty-dark.svg?react';
 import UsersEmpty from '@/assets/images/users-empty.svg?react';
 import ApplicationName from '@/components/ApplicationName';
+import ClientIdentifier from '@/components/ClientIdentifier';
 import { LocaleDate } from '@/components/DateTime';
 import EmptyDataPlaceholder from '@/components/EmptyDataPlaceholder';
 import ItemPreview from '@/components/ItemPreview';
@@ -21,6 +22,7 @@ import Search from '@/ds-components/Search';
 import Table from '@/ds-components/Table';
 import TablePlaceholder from '@/ds-components/Table/TablePlaceholder';
 import type { RequestError } from '@/hooks/use-api';
+import useCurrentTenantScopes from '@/hooks/use-current-tenant-scopes';
 import useSearchParametersWatcher from '@/hooks/use-search-parameters-watcher';
 import useTenantPathname from '@/hooks/use-tenant-pathname';
 import pageLayout from '@/scss/page-layout.module.scss';
@@ -54,6 +56,9 @@ function Users() {
   const { data, error, mutate } = useSWR<[User[], number], RequestError>(url);
   const isLoading = !data && !error;
   const { navigate, match } = useTenantPathname();
+  const {
+    access: { isReadOnly },
+  } = useCurrentTenantScopes();
   const [users, totalCount] = data ?? [];
   const isCreating = match(createUserPathname);
 
@@ -66,18 +71,20 @@ function Users() {
           subtitle="users.subtitle"
           learnMoreLink={{ href: userManagement }}
         />
-        <Button
-          icon={<Plus />}
-          type="primary"
-          size="large"
-          title="users.create"
-          onClick={() => {
-            navigate({
-              pathname: createUserPathname,
-              search,
-            });
-          }}
-        />
+        {!isReadOnly && (
+          <Button
+            icon={<Plus />}
+            type="primary"
+            size="large"
+            title="users.create"
+            onClick={() => {
+              navigate({
+                pathname: createUserPathname,
+                search,
+              });
+            }}
+          />
+        )}
       </div>
       <DevTenantDataRetentionNotice />
       <Table
@@ -109,8 +116,21 @@ function Users() {
             title: t('users.application_name'),
             dataIndex: 'app',
             colSpan: 5,
-            render: ({ applicationId }) =>
-              applicationId ? <ApplicationName applicationId={applicationId} /> : <div>-</div>,
+            render: ({ applicationId, cimdClientId }) => {
+              /**
+               * A CIMD-first user has no `applicationId`; its origin client lives in the
+               * additive `cimdClientId` field (LOG-14005) — shown as the raw identifier.
+               */
+              if (cimdClientId) {
+                return <ClientIdentifier value={cimdClientId} />;
+              }
+
+              return applicationId ? (
+                <ApplicationName applicationId={applicationId} />
+              ) : (
+                <div>-</div>
+              );
+            },
           },
           {
             title: t('users.latest_sign_in'),
@@ -142,18 +162,20 @@ function Users() {
               title="users.placeholder_title"
               description="users.placeholder_description"
               action={
-                <Button
-                  title="users.create"
-                  type="primary"
-                  size="large"
-                  icon={<Plus />}
-                  onClick={() => {
-                    navigate({
-                      pathname: createUserPathname,
-                      search,
-                    });
-                  }}
-                />
+                !isReadOnly && (
+                  <Button
+                    title="users.create"
+                    type="primary"
+                    size="large"
+                    icon={<Plus />}
+                    onClick={() => {
+                      navigate({
+                        pathname: createUserPathname,
+                        search,
+                      });
+                    }}
+                  />
+                )
               }
             />
           )
@@ -171,7 +193,7 @@ function Users() {
         }}
         onRetry={async () => mutate(undefined, true)}
       />
-      {isCreating && (
+      {isCreating && !isReadOnly && (
         <CreateForm
           onClose={() => {
             navigate({

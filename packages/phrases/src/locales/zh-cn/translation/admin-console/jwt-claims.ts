@@ -35,6 +35,8 @@ const jwt_claims = {
   error_handling_tab: '错误处理',
   test_tab: '测试上下文',
   jwt_claims_description: '默认声明会自动包含在JWT中，不能被覆盖。',
+  reserved_claims_description:
+    '`acr`、`amr` 和 `auth_time` 在用户访问令牌中是保留声明：Logto 始终自行推导这些值，并忽略使用这些键的自定义声明。',
   user_data: {
     title: '用户数据',
     subtitle: '使用`context.user`输入参数提供重要用户信息。',
@@ -91,6 +93,11 @@ const jwt_claims = {
     subtitle: '调整模拟令牌和用户数据进行测试。',
     run_button: '运行测试',
     result_title: '测试结果',
+  },
+  sandbox_warning: {
+    title: '脚本以服务器权限运行',
+    description:
+      '在自托管的 Logto 中，此脚本与 Logto 本身运行在相同环境中：它可以读取服务器环境变量并访问你的内网服务。它没有沙箱隔离。请仅向你信任可访问服务器的人开放此页面。',
   },
   form_error: {
     invalid_json: 'JSON格式无效',

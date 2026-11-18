@@ -7,6 +7,8 @@ import {
   SignInIdentifier,
   SignInMode,
   Theme,
+  defaultTrustedDevicePolicy,
+  defaultMaximumAuthenticationAgeInSeconds,
   defaultUsernamePolicy,
   type AccountCenter,
   type UserProfileResponse,
@@ -43,6 +45,7 @@ export const mockAccountCenterSettings = {
   webauthnRelatedOrigins: [],
   deleteAccountUrl: null,
   customCss: null,
+  maximumAuthenticationAgeInSeconds: defaultMaximumAuthenticationAgeInSeconds,
 } satisfies AccountCenter;
 
 export const mockSignInExperienceSettings = {
@@ -114,6 +117,7 @@ export const mockSignInExperienceSettings = {
       MfaFactor.PhoneVerificationCode,
     ],
   },
+  trustedDevice: defaultTrustedDevicePolicy,
   adaptiveMfa: {},
   singleSignOnEnabled: true,
   supportEmail: null,
@@ -122,7 +126,6 @@ export const mockSignInExperienceSettings = {
   captchaPolicy: {},
   sentinelPolicy: {},
   verificationCodePolicy: {},
-  emailBlocklistPolicy: {},
   passkeySignIn: {},
   isDevelopmentTenant: false,
   signUpProfileFields: null,
@@ -171,8 +174,6 @@ export const createMockPageContext = (
   refreshUserInfo: noopAsync,
   userInfoError: undefined,
   isLoadingUserInfo: false,
-  verificationId: undefined,
-  setVerificationId: noop,
   isLoadingExperience: false,
   experienceError: undefined,
   ...overrides,

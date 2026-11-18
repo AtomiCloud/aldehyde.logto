@@ -37,7 +37,9 @@ const jwt_claims = {
   data_source_tab: 'Data source',
   error_handling_tab: 'Error handling',
   test_tab: 'Test context',
-  jwt_claims_description: 'Default claims are auto-included in the  and cannot be overridden.',
+  jwt_claims_description: 'Default claims are auto-included in the token and cannot be overridden.',
+  reserved_claims_description:
+    '`acr`, `amr`, and `auth_time` are reserved on user access tokens: Logto always derives them and ignores custom claims that use these keys.',
   user_data: {
     title: 'User context',
     subtitle: 'Use `context.user` input parameter to provide vital user info.',
@@ -100,6 +102,11 @@ const jwt_claims = {
     subtitle: 'Adjust mock token and user data for testing.',
     run_button: 'Run test',
     result_title: 'Test result',
+  },
+  sandbox_warning: {
+    title: 'Scripts run with server privileges',
+    description:
+      'On self-hosted Logto, this script runs in the same environment as Logto itself: it can read server environment variables and reach services on your internal network. It is not sandboxed. Only give access to this page to people you would trust with access to the server.',
   },
   form_error: {
     invalid_json: 'Invalid JSON format',

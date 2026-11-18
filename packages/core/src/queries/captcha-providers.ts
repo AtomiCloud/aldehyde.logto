@@ -1,4 +1,5 @@
 import {
+  CaptchaType,
   type CaptchaProvider,
   CaptchaProviders,
   type CaptchaProviderKeys,
@@ -7,6 +8,7 @@ import {
 import { generateStandardId } from '@logto/shared';
 import { type CommonQueryMethods } from '@silverhand/slonik';
 
+import { type WellKnownCache } from '../caches/well-known.js';
 import SchemaQueries from '../utils/SchemaQueries.js';
 
 export class CaptchaProviderQueries extends SchemaQueries<
@@ -14,7 +16,68 @@ export class CaptchaProviderQueries extends SchemaQueries<
   CreateCaptchaProvider,
   CaptchaProvider
 > {
-  constructor(public readonly pool: CommonQueryMethods) {
+  /**
+   * The Cap Standalone endpoint of the current captcha provider, or `null` if the provider is not
+   * Cap. It is public data (the experience app needs it to reach the instance), so it's safe to
+   * cache and is used to build the experience CSP on every page request.
+   */
+  public readonly findCapEndpoint = this.wellKnownCache.memoize(
+    // eslint-disable-next-line unicorn/consistent-function-scoping -- False positive, `this` is used
+    async () => {
+      const provider = await this.findCaptchaProvider();
+      return provider?.config.type === CaptchaType.Cap ? provider.config.endpoint : null;
+    },
+    ['captcha-cap-endpoint']
+  );
+
+  /**
+   * The type of the current captcha provider, or `null` if none is configured. It is public data
+   * and is used to build the experience CSP on every page request.
+   */
+  public readonly findCaptchaProviderType = this.wellKnownCache.memoize(
+    // eslint-disable-next-line unicorn/consistent-function-scoping -- False positive, `this` is used
+    async () => {
+      const provider = await this.findCaptchaProvider();
+      return provider?.config.type ?? null;
+    },
+    ['captcha-provider-type']
+  );
+
+  public readonly upsertCaptchaProvider = this.wellKnownCache.mutate(
+    // eslint-disable-next-line unicorn/consistent-function-scoping -- False positive, `this` is used
+    async (captchaProvider: Pick<CaptchaProvider, 'config'>): Promise<CaptchaProvider> => {
+      const existing = await this.findCaptchaProvider();
+
+      if (existing) {
+        return this.updateById(existing.id, captchaProvider, 'replace');
+      }
+
+      return this.insert({
+        ...captchaProvider,
+        id: generateStandardId(),
+      });
+    },
+    ['captcha-cap-endpoint'],
+    ['captcha-provider-type']
+  );
+
+  public readonly deleteCaptchaProvider = this.wellKnownCache.mutate(
+    // eslint-disable-next-line unicorn/consistent-function-scoping -- False positive, `this` is used
+    async (): Promise<void> => {
+      const existing = await this.findCaptchaProvider();
+
+      if (existing) {
+        await this.deleteById(existing.id);
+      }
+    },
+    ['captcha-cap-endpoint'],
+    ['captcha-provider-type']
+  );
+
+  constructor(
+    public readonly pool: CommonQueryMethods,
+    private readonly wellKnownCache: WellKnownCache
+  ) {
     super(pool, CaptchaProviders);
   }
 
@@ -31,28 +94,5 @@ export class CaptchaProviderQueries extends SchemaQueries<
     }
 
     return providers[0];
-  };
-
-  public readonly upsertCaptchaProvider = async (
-    captchaProvider: Pick<CaptchaProvider, 'config'>
-  ): Promise<CaptchaProvider> => {
-    const existing = await this.findCaptchaProvider();
-
-    if (existing) {
-      return this.updateById(existing.id, captchaProvider, 'replace');
-    }
-
-    return this.insert({
-      ...captchaProvider,
-      id: generateStandardId(),
-    });
-  };
-
-  public readonly deleteCaptchaProvider = async (): Promise<void> => {
-    const existing = await this.findCaptchaProvider();
-
-    if (existing) {
-      await this.deleteById(existing.id);
-    }
   };
 }

@@ -16,6 +16,15 @@ export const samlAttributeMappingGuard = z
   )
   .partial() satisfies z.ZodType<SamlAttributeMapping>;
 
+/** Fixed SAML attributes added to every assertion, keyed by attribute name. */
+export type SamlStaticAttributes = Record<string, string>;
+
+export const samlStaticAttributesGuard = z.record(
+  // Names are inserted into the assertion XML unescaped by samlify.
+  z.string().regex(/^[\w#./:@-]+$/),
+  z.string().min(1)
+) satisfies z.ZodType<SamlStaticAttributes>;
+
 export enum BindingType {
   Post = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
   Redirect = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
@@ -49,6 +58,25 @@ export const samlEncryptionGuard = z
   });
 
 export type SamlEncryption = z.input<typeof samlEncryptionGuard>;
+
+/** Authentication and request-signature policy for a SAML application. */
+export const samlAuthnRequestConfigGuard = z
+  .object({
+    forceAuthn: z.boolean().optional(),
+    requireSignedAuthnRequests: z.boolean().optional(),
+    signingCertificate: z.string().trim().min(1).optional(),
+  })
+  .superRefine(({ requireSignedAuthnRequests, signingCertificate }, ctx) => {
+    if (requireSignedAuthnRequests && !signingCertificate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signingCertificate'],
+        message: '`signingCertificate` is required when `requireSignedAuthnRequests` is `true`',
+      });
+    }
+  });
+
+export type SamlAuthnRequestConfig = z.infer<typeof samlAuthnRequestConfigGuard>;
 
 export enum NameIdFormat {
   /** Uses unique and persistent identifiers for the user. */
