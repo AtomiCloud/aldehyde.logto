@@ -96,7 +96,7 @@ fork/rebase.sh --dry-run v1.42.0   # fetch + preview the replay, no changes
 fork/rebase.sh v1.42.0             # rebase --onto, re-pin, rebuild, re-test
 ```
 
-The script cherry-picks the fork commits (first-parent only) onto `<new>`,
+The script cherry-picks the fork commits (only those that descend from the old pin) onto `<new>`,
 rewrites `fork/UPSTREAM_REF`, then rebuilds and re-runs the integration harness —
 so a rebase is never done until the patch still passes. Conflicts, if any, are
 confined to the files the two functional patches touch (boot-seed + its hook,
@@ -108,8 +108,11 @@ The replay rewrites history, so the script ends with a `merge -s ours` of the
 replaced fork head: the tree stays exactly the replayed one, and `aldehyde` only
 ever **fast-forwards**. **Never force-push `aldehyde`**: push the result as a new
 branch (for example `rebase/v1.46.0`), open a PR into `aldehyde`, and let CI plus
-review pass there. Because of that merge, the next replay takes first-parent
-commits only, so the replaced commits are never replayed twice.
+review pass there. Because of that merge, the next replay takes only commits that
+descend from the pin (`--ancestry-path`), so the replaced commits are never replayed
+twice. Land the PR with a plain push of its head or GitHub's **merge commit**; never
+**squash** or **rebase-merge** (both drop the pin from the history and break the next
+replay and the post-merge `rebase-exercise`).
 
 ## Test coverage & boundary
 

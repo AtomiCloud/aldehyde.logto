@@ -163,8 +163,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # The branch head, not GitHub's PR test merge: the exercise walks the
-          # fork's first-parent chain, and the test merge's first parent is the base.
+          # The branch head, not GitHub's PR test merge, so the exercise replays exactly the
+          # pushed fork commits.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Setup Node and pnpm
         uses: silverhand-io/actions-node-pnpm-run-steps@v5
@@ -191,9 +191,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # The chart pins an IMMUTABLE reference `ghcr.io/atomicloud/aldehyde.logto:1.46.0`.
-      # Derive that exact tag from the pinned upstream ref in fork/UPSTREAM_REF so
-      # the published tag and the chart pin can never drift apart.
+      # The chart pins `ghcr.io/atomicloud/aldehyde.logto:1.46.0`. Derive that exact tag from
+      # the pinned upstream ref in fork/UPSTREAM_REF so the published tag and the chart pin
+      # can never drift apart. NOTE: the version tag is re-published by every push to
+      # `aldehyde` on the same pin; for an immutable reference pin the digest reported below
+      # (or the `sha-<commit>` tag).
       - name: Derive the deterministic product version from the upstream pin
         id: ver
         run: |

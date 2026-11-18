@@ -38,7 +38,7 @@ git fetch --force --tags upstream
 
 old_commit="$(git rev-parse "${old_ref}^{commit}")"
 new_commit="$(git rev-parse "${new_ref}^{commit}")"
-functional_commit="$(git log --first-parent --format=%H --grep='^feat(core): boot-seed logto-operator M2M credential on startup$' -1 "${new_commit}..HEAD")"
+functional_commit="$(git log --ancestry-path --format=%H --grep='^feat(core): boot-seed logto-operator M2M credential on startup$' -1 "${new_commit}..HEAD")"
 [[ -n "${functional_commit}" ]] || die 'could not locate the isolated functional patch commit'
 
 info "Materialize old monthly pin ${old_ref} (${old_commit})"

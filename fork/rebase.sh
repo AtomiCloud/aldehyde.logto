@@ -57,11 +57,12 @@ if [[ "${old_commit}" == "${new_commit}" ]]; then
   exit 0
 fi
 
-# First-parent only: a previous rebase landed on the fork branch through a
-# `merge -s ours` of the history it replaced (no force-push), so the replaced fork
-# commits are still reachable through that merge's second parent. They must not
-# be replayed again.
-mapfile -t fork_commits < <(git rev-list --reverse --first-parent --no-merges "${old_commit}..HEAD")
+# Only commits that descend from the current pin (--ancestry-path): a previous rebase
+# landed through a `merge -s ours` of the history it replaced (no force-push), and the
+# PR may then land through a GitHub merge commit whose FIRST parent is that replaced
+# history. Those replaced commits do not contain the pin, so they are never replayed;
+# fork commits merged later from feature branches on top of the pin still are.
+mapfile -t fork_commits < <(git rev-list --reverse --topo-order --no-merges --ancestry-path "${old_commit}..HEAD")
 [[ "${#fork_commits[@]}" -gt 0 ]] || die "no fork commits found on top of ${old_commit}"
 info "Fork commits that will be replayed onto ${new_ref}:"
 git --no-pager log --oneline --no-walk=unsorted "${fork_commits[@]}"
